@@ -25,6 +25,10 @@ describe("CodeFire", () => {
     expect(runtime.cliName).toBe("codefire-agent")
   })
 
+  test("sets cli name to codefire-agent when env profile is active", () => {
+    expect(CodeFire.cliName(["/usr/local/bin/opencode"], { CODEFIRE_AGENT: "1" })).toBe("codefire-agent")
+  })
+
   test("treats whitespace-padded disabled env values as disabled", () => {
     expect(CodeFire.detect(["/usr/local/bin/opencode"], { CODEFIRE_AGENT: " false " }).mode).toBe("normal")
   })

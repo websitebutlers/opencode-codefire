@@ -40,6 +40,7 @@ import { Heap } from "./cli/heap"
 import { drizzle } from "drizzle-orm/bun-sqlite"
 import { ensureProcessMetadata } from "@opencode-ai/core/util/opencode-process"
 import { isRecord } from "@/util/record"
+import { CodeFire } from "@/codefire/codefire"
 
 const processMetadata = ensureProcessMetadata("main")
 
@@ -56,10 +57,12 @@ process.on("uncaughtException", (e) => {
 })
 
 const args = hideBin(process.argv)
+CodeFire.applyEnv()
+const scriptName = CodeFire.cliName()
 
 function show(out: string) {
   const text = out.trimStart()
-  if (!text.startsWith("opencode ")) {
+  if (!text.startsWith(`${scriptName} `)) {
     process.stderr.write(UI.logo() + EOL + EOL)
     process.stderr.write(text)
     return
@@ -69,7 +72,7 @@ function show(out: string) {
 
 const cli = yargs(args)
   .parserConfiguration({ "populate--": true })
-  .scriptName("opencode")
+  .scriptName(scriptName)
   .wrap(100)
   .help("help", "show help")
   .alias("help", "h")
