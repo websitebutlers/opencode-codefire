@@ -3,7 +3,7 @@ import { spawnSync } from "child_process"
 import fs from "fs/promises"
 import os from "os"
 import path from "path"
-import { generatedCodeFireAgentWrapper, generatedPublicPackage } from "../../script/publish"
+import { generatedCodeFireAgentWrapper, generatedPostinstallSkippedPlaceholder, generatedPublicPackage } from "../../script/publish"
 
 describe("codefire-agent bin alias", () => {
   test("package.json exposes codefire-agent beside opencode", async () => {
@@ -59,6 +59,51 @@ describe("codefire-agent bin alias", () => {
 
       const result = spawnSync(process.execPath, ["--check", file], { encoding: "utf8" })
       expect(result.status).toBe(0)
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  test("postinstall-skipped placeholder has a POSIX shebang", () => {
+    const placeholder = generatedPostinstallSkippedPlaceholder("opencode")
+    expect(placeholder.startsWith("#!/bin/sh\n")).toBe(true)
+    expect(placeholder).toContain("postinstall script was not run")
+    expect(placeholder).toContain("exit 1")
+  })
+
+  test("generated codefire-agent wrapper propagates env, args, and exit code", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "codefire-agent-generated-"))
+    try {
+      const bin = path.join(dir, "bin")
+      const wrapper = path.join(bin, "codefire-agent")
+      const target = path.join(bin, "opencode.exe")
+      const output = path.join(dir, "output.json")
+
+      await fs.mkdir(bin)
+      await fs.writeFile(wrapper, generatedCodeFireAgentWrapper())
+      await fs.writeFile(
+        target,
+        [
+          "#!/usr/bin/env node",
+          'const fs = require("fs")',
+          `fs.writeFileSync(${JSON.stringify(output)}, JSON.stringify({`,
+          "  codefireAgent: process.env.CODEFIRE_AGENT,",
+          "  argv: process.argv.slice(2),",
+          "}))",
+          "process.exit(17)",
+          "",
+        ].join("\n"),
+      )
+      await fs.chmod(wrapper, 0o755)
+      await fs.chmod(target, 0o755)
+
+      const result = spawnSync(process.execPath, [wrapper, "alpha", "--flag", "value"], { encoding: "utf8" })
+
+      expect(result.status).toBe(17)
+      expect(JSON.parse(await Bun.file(output).text())).toEqual({
+        codefireAgent: "1",
+        argv: ["alpha", "--flag", "value"],
+      })
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }

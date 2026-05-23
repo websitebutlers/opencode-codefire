@@ -53,6 +53,23 @@ export function generatedCodeFireAgentWrapper() {
   ].join("\n")
 }
 
+export function generatedPostinstallSkippedPlaceholder(name: string) {
+  return [
+    "#!/bin/sh",
+    `echo "Error: ${name}-ai's postinstall script was not run." >&2`,
+    'echo "" >&2',
+    'echo "This occurs when using --ignore-scripts during installation, or when using a" >&2',
+    'echo "package manager like pnpm that does not run postinstall scripts by default." >&2',
+    'echo "" >&2',
+    'echo "To fix this, run the postinstall script manually:" >&2',
+    `echo "  cd node_modules/${name}-ai && node postinstall.mjs" >&2`,
+    'echo "" >&2',
+    `echo "Or reinstall ${name}-ai without the --ignore-scripts flag." >&2`,
+    "exit 1",
+    "",
+  ].join("\n")
+}
+
 export function generatedPublicPackage(input: {
   name: string
   version: string
@@ -108,21 +125,7 @@ async function main() {
   await $`mkdir -p ./dist/${pkg.name}/bin`
   await $`cp ./script/postinstall.mjs ./dist/${pkg.name}/postinstall.mjs`
   await Bun.file(`./dist/${pkg.name}/LICENSE`).write(await Bun.file("../../LICENSE").text())
-  await Bun.file(`./dist/${pkg.name}/bin/${pkg.name}.exe`).write(
-    [
-      `echo "Error: ${pkg.name}-ai's postinstall script was not run." >&2`,
-      'echo "" >&2',
-      'echo "This occurs when using --ignore-scripts during installation, or when using a" >&2',
-      'echo "package manager like pnpm that does not run postinstall scripts by default." >&2',
-      'echo "" >&2',
-      'echo "To fix this, run the postinstall script manually:" >&2',
-      `echo "  cd node_modules/${pkg.name}-ai && node postinstall.mjs" >&2`,
-      'echo "" >&2',
-      `echo "Or reinstall ${pkg.name}-ai without the --ignore-scripts flag." >&2`,
-      "exit 1",
-      "",
-    ].join("\n"),
-  )
+  await Bun.file(`./dist/${pkg.name}/bin/${pkg.name}.exe`).write(generatedPostinstallSkippedPlaceholder(pkg.name))
   await Bun.file(`./dist/${pkg.name}/bin/codefire-agent`).write(generatedCodeFireAgentWrapper())
 
   await Bun.file(`./dist/${pkg.name}/package.json`).write(
