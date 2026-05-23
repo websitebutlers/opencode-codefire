@@ -1,0 +1,45 @@
+#!/usr/bin/env node
+
+import childProcess from "child_process"
+import path from "path"
+import { fileURLToPath } from "url"
+
+const forwardedSignals = ["SIGINT", "SIGTERM", "SIGHUP"]
+const target = path.join(path.dirname(fileURLToPath(import.meta.url)), "opencode")
+
+process.env.CODEFIRE_AGENT = "1"
+
+const child = childProcess.spawn(process.execPath, [target, ...process.argv.slice(2)], {
+  stdio: "inherit",
+  env: process.env,
+})
+
+child.on("error", (error) => {
+  console.error(error.message)
+  process.exit(1)
+})
+
+const forwarders = {}
+for (const signal of forwardedSignals) {
+  forwarders[signal] = () => {
+    try {
+      child.kill(signal)
+    } catch {
+      // The child may have already exited.
+    }
+  }
+  process.on(signal, forwarders[signal])
+}
+
+child.on("exit", (code, signal) => {
+  for (const forwardedSignal of forwardedSignals) {
+    process.removeListener(forwardedSignal, forwarders[forwardedSignal])
+  }
+
+  if (signal) {
+    process.kill(process.pid, signal)
+    return
+  }
+
+  process.exit(typeof code === "number" ? code : 0)
+})

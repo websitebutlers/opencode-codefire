@@ -3,25 +3,24 @@ import { spawnSync } from "child_process"
 import fs from "fs/promises"
 import os from "os"
 import path from "path"
+import { generatedCodeFireAgentWrapper, generatedPublicPackage } from "../../script/publish"
 
 describe("codefire-agent bin alias", () => {
   test("package.json exposes codefire-agent beside opencode", async () => {
     const pkg = await Bun.file(path.join(import.meta.dir, "../../package.json")).json()
     expect(pkg.bin.opencode).toBe("./bin/opencode")
-    expect(pkg.bin["codefire-agent"]).toBe("./bin/opencode")
+    expect(pkg.bin["codefire-agent"]).toBe("./bin/codefire-agent")
   })
 
-  test("source node wrapper preserves codefire-agent invocation", async () => {
+  test("dedicated source wrapper propagates codefire-agent mode", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "codefire-agent-bin-"))
     try {
       const target = path.join(dir, "target.js")
-      const alias = path.join(dir, process.platform === "win32" ? "codefire-agent.cmd" : "codefire-agent")
 
       await fs.writeFile(target, '#!/usr/bin/env node\nconsole.log(process.env.CODEFIRE_AGENT || "")\n')
       await fs.chmod(target, 0o755)
-      await fs.symlink(path.join(import.meta.dir, "../../bin/opencode"), alias)
 
-      const result = spawnSync(process.execPath, [alias], {
+      const result = spawnSync(process.execPath, [path.join(import.meta.dir, "../../bin/codefire-agent")], {
         encoding: "utf8",
         env: { ...process.env, OPENCODE_BIN_PATH: target },
       })
@@ -33,15 +32,35 @@ describe("codefire-agent bin alias", () => {
     }
   })
 
-  test("source node wrapper normalizes platform shim extensions", async () => {
-    const wrapper = await Bun.file(path.join(import.meta.dir, "../../bin/opencode")).text()
-    expect(wrapper).toContain('replace(/\\.(cmd|exe)$/i, "")')
+  test("publish helpers expose the public codefire-agent package alias", () => {
+    const manifest = generatedPublicPackage({
+      name: "opencode",
+      version: "1.2.3",
+      license: "MIT",
+      binaries: { "opencode-darwin-arm64": "1.2.3" },
+    })
+    expect(manifest.name).toBe("opencode-ai")
+    expect(manifest.bin).toEqual({
+      opencode: "./bin/opencode.exe",
+      "codefire-agent": "./bin/codefire-agent",
+    })
+    expect(manifest.optionalDependencies).toEqual({ "opencode-darwin-arm64": "1.2.3" })
   })
 
-  test("publish script exposes the public codefire-agent package alias", async () => {
-    const script = await Bun.file(path.join(import.meta.dir, "../../script/publish.ts")).text()
-    expect(script).toContain('"codefire-agent": "./bin/codefire-agent"')
-    expect(script).toContain('process.env.CODEFIRE_AGENT = "1"')
-    expect(script).toContain('path.join(__dirname, "opencode.exe")')
+  test("publish helper returns a valid codefire-agent wrapper", async () => {
+    const wrapper = generatedCodeFireAgentWrapper()
+    expect(wrapper).toContain('process.env.CODEFIRE_AGENT = "1"')
+    expect(wrapper).toContain('path.join(__dirname, "opencode.exe")')
+
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "codefire-agent-publish-"))
+    try {
+      const file = path.join(dir, "codefire-agent.cjs")
+      await fs.writeFile(file, wrapper)
+
+      const result = spawnSync(process.execPath, ["--check", file], { encoding: "utf8" })
+      expect(result.status).toBe(0)
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
   })
 })
