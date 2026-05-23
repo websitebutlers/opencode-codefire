@@ -44,6 +44,19 @@ describe("CodeFire", () => {
     expect(runtime.handoffTitle).toBe("Build CodeFire agent harness")
   })
 
+  test("detects Agent Chat mode from metadata without CodeFire agent env", () => {
+    expect(CodeFire.detect(["/usr/local/bin/opencode"], { CODEFIRE_AGENT_CHAT: "1" }).mode).toBe("agent-chat")
+    expect(CodeFire.detect(["/usr/local/bin/opencode"], { CODEFIRE_PROJECT_ID: "project-1" }).mode).toBe("agent-chat")
+
+    const runtime = CodeFire.detect(["/usr/local/bin/opencode"], { CODEFIRE_PARENT_THREAD_ID: "150" })
+    expect(runtime.mode).toBe("agent-chat")
+    expect(runtime.parentThreadID).toBe(150)
+  })
+
+  test("ignores invalid Agent Chat parent thread metadata by itself", () => {
+    expect(CodeFire.detect(["/usr/local/bin/opencode"], { CODEFIRE_PARENT_THREAD_ID: "0" }).mode).toBe("normal")
+  })
+
   test("does not mutate env for normal launches", () => {
     const env: Record<string, string | undefined> = {}
     CodeFire.applyEnv(["/usr/local/bin/opencode"], env)

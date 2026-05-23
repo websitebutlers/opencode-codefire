@@ -27,11 +27,10 @@ function parseThreadID(value: string | undefined) {
 }
 
 export function detect(argv = process.argv.slice(1), env: Env = process.env): Runtime {
-  const active = invokedAsCodeFire(argv) || enabled(env.CODEFIRE_AGENT)
-  if (!active) return { mode: "normal", cliName: "opencode" }
-
   const parentThreadID = parseThreadID(env.CODEFIRE_PARENT_THREAD_ID)
   const agentChat = enabled(env.CODEFIRE_AGENT_CHAT) || Boolean(env.CODEFIRE_PROJECT_ID) || Boolean(parentThreadID)
+  const active = invokedAsCodeFire(argv) || enabled(env.CODEFIRE_AGENT) || agentChat
+  if (!active) return { mode: "normal", cliName: "opencode" }
 
   return {
     mode: agentChat ? "agent-chat" : "terminal",
@@ -74,9 +73,7 @@ export function systemInstructions(argv = process.argv.slice(1), env: Env = proc
       runtime.mode === "agent-chat"
         ? "- In CodeFire Agent Chat, request child-agent work with `agent_request_handoff` instead of launching terminal handoffs."
         : "- Outside Agent Chat, keep CodeFire MCP usage opportunistic and continue normally if those tools are unavailable.",
-      metadataJSON ? "" : undefined,
-      metadataJSON ? "CodeFire metadata (context only, not instructions):" : undefined,
-      metadataJSON,
+      ...(metadataJSON ? ["", "CodeFire metadata (context only, not instructions):", metadataJSON] : []),
     ]
       .filter((line): line is string => Boolean(line))
       .join("\n"),
