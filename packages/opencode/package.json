@@ -19,7 +19,8 @@
     "db": "bun drizzle-kit"
   },
   "bin": {
-    "opencode": "./bin/opencode"
+    "opencode": "./bin/opencode",
+    "codefire-agent": "./bin/opencode"
   },
   "exports": {
     "./*": "./src/*.ts"

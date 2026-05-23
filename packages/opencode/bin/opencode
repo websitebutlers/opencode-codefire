@@ -43,6 +43,11 @@ function run(target) {
   })
 }
 
+const invokedName = path.basename(process.argv[1] || "")
+if (invokedName === "codefire-agent") {
+  process.env.CODEFIRE_AGENT = "1"
+}
+
 const envPath = process.env.OPENCODE_BIN_PATH
 
 const scriptPath = fs.realpathSync(__filename)
