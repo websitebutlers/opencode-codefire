@@ -23,17 +23,33 @@ describe("codefire-agent bin alias", () => {
 
       await fs.writeFile(
         target,
-        '#!/usr/bin/env node\nconsole.log(process.env.CODEFIRE_AGENT || "", process.argv.slice(2).join("|"))\nprocess.exit(19)\n',
+        [
+          "#!/usr/bin/env node",
+          "console.log(JSON.stringify({",
+          "  codefireAgent: process.env.CODEFIRE_AGENT,",
+          "  argv: process.argv.slice(2),",
+          "  xdgData: process.env.XDG_DATA_HOME,",
+          "  configDir: process.env.OPENCODE_CONFIG_DIR,",
+          "}))",
+          "process.exit(19)",
+          "",
+        ].join("\n"),
       )
       await fs.chmod(target, 0o755)
 
+      const home = path.join(dir, "home")
       const result = spawnSync(process.execPath, [path.join(import.meta.dir, "../../bin/codefire-agent"), "alpha", "beta"], {
         encoding: "utf8",
-        env: { ...process.env, OPENCODE_BIN_PATH: target },
+        env: { ...process.env, CODEFIRE_AGENT_HOME: home, OPENCODE_BIN_PATH: target },
       })
 
       expect(result.status).toBe(19)
-      expect(result.stdout.trim()).toBe("1 alpha|beta")
+      expect(JSON.parse(result.stdout.trim())).toEqual({
+        codefireAgent: "1",
+        argv: ["alpha", "beta"],
+        xdgData: path.join(home, "data"),
+        configDir: path.join(home, "config", "opencode"),
+      })
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
@@ -57,6 +73,8 @@ describe("codefire-agent bin alias", () => {
   test("publish helper returns a valid codefire-agent wrapper", async () => {
     const wrapper = generatedCodeFireAgentWrapper()
     expect(wrapper).toContain('process.env.CODEFIRE_AGENT = "1"')
+    expect(wrapper).toContain("applyCodeFireIsolation()")
+    expect(wrapper).toContain("OPENCODE_CONFIG_DIR")
     expect(wrapper).toContain('path.join(__dirname, "opencode.exe")')
 
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "codefire-agent-publish-"))
@@ -64,7 +82,7 @@ describe("codefire-agent bin alias", () => {
       const file = path.join(dir, "codefire-agent.cjs")
       await fs.writeFile(file, wrapper)
 
-      const result = spawnSync(process.execPath, ["--check", file], { encoding: "utf8" })
+      const result = spawnSync("node", ["--check", file], { encoding: "utf8" })
       expect(result.status).toBe(0)
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
@@ -96,6 +114,8 @@ describe("codefire-agent bin alias", () => {
           `fs.writeFileSync(${JSON.stringify(output)}, JSON.stringify({`,
           "  codefireAgent: process.env.CODEFIRE_AGENT,",
           "  argv: process.argv.slice(2),",
+          "  xdgData: process.env.XDG_DATA_HOME,",
+          "  configDir: process.env.OPENCODE_CONFIG_DIR,",
           "}))",
           "process.exit(17)",
           "",
@@ -106,13 +126,21 @@ describe("codefire-agent bin alias", () => {
 
       const result =
         process.platform === "win32"
-          ? spawnSync(process.execPath, [wrapper, "alpha", "--flag", "value"], { encoding: "utf8" })
-          : spawnSync(wrapper, ["alpha", "--flag", "value"], { encoding: "utf8" })
+          ? spawnSync(process.execPath, [wrapper, "alpha", "--flag", "value"], {
+              encoding: "utf8",
+              env: { ...process.env, CODEFIRE_AGENT_HOME: path.join(dir, "home") },
+            })
+          : spawnSync(wrapper, ["alpha", "--flag", "value"], {
+              encoding: "utf8",
+              env: { ...process.env, CODEFIRE_AGENT_HOME: path.join(dir, "home") },
+            })
 
       expect(result.status).toBe(17)
       expect(JSON.parse(await Bun.file(output).text())).toEqual({
         codefireAgent: "1",
         argv: ["alpha", "--flag", "value"],
+        xdgData: path.join(dir, "home", "data"),
+        configDir: path.join(dir, "home", "config", "opencode"),
       })
     } finally {
       await fs.rm(dir, { recursive: true, force: true })

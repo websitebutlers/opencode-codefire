@@ -19,6 +19,8 @@ import { modify, applyEdits } from "jsonc-parser"
 import { Filesystem } from "@/util/filesystem"
 import { Bus } from "../../bus"
 import { Effect } from "effect"
+import { CodeFireMCP } from "@/codefire/mcp"
+import type { DiagnosticStatus } from "@/codefire/mcp"
 
 function getAuthStatusIcon(status: MCP.AuthStatus): string {
   switch (status) {
@@ -97,10 +99,12 @@ export const McpCommand = cmd({
   builder: (yargs) =>
     yargs
       .command(McpAddCommand)
+      .command(McpBootstrapCommand)
       .command(McpListCommand)
       .command(McpAuthCommand)
       .command(McpLogoutCommand)
       .command(McpDebugCommand)
+      .command(McpDoctorCommand)
       .demandCommand(),
   async handler() {},
 })
@@ -591,6 +595,160 @@ export const McpAddCommand = effectCmd({
 
       prompts.outro("MCP server added successfully")
     })
+  }),
+})
+
+export const McpBootstrapCommand = effectCmd({
+  command: "bootstrap [name]",
+  describe: "bootstrap the CodeFire MCP server",
+  builder: (yargs) =>
+    yargs
+      .positional("name", {
+        describe: "name of the MCP server",
+        type: "string",
+      })
+      .option("command", {
+        describe: "local CodeFire MCP command, or JSON array of command argv",
+        type: "string",
+      })
+      .option("url", {
+        describe: "remote CodeFire MCP URL",
+        type: "string",
+      })
+      .option("timeout", {
+        describe: "MCP request timeout in milliseconds",
+        type: "number",
+      })
+      .option("global", {
+        describe: "write to global config instead of the current project",
+        type: "boolean",
+        default: false,
+      })
+      .option("force", {
+        describe: "replace an existing MCP server entry",
+        type: "boolean",
+        default: false,
+      }),
+  handler: Effect.fn("Cli.mcp.bootstrap")(function* (args) {
+    const maybeCtx = yield* InstanceRef
+    if (!maybeCtx) return yield* Effect.die("InstanceRef not provided")
+    const ctx = maybeCtx
+    const config = yield* Config.Service.use((cfg) => cfg.get())
+
+    yield* Effect.promise(async () => {
+      UI.empty()
+      prompts.intro("CodeFire MCP Bootstrap")
+
+      const name = CodeFireMCP.mcpName(process.env, args.name)
+      const existing = CodeFireMCP.configuredEntry(config, name)
+      if (existing && !args.force) {
+        prompts.log.warn(`MCP server "${name}" already exists`)
+        prompts.log.info("Use --force to replace it")
+        prompts.outro("No changes made")
+        return
+      }
+
+      let mcpConfig: ConfigMCP.Info
+      try {
+        mcpConfig = CodeFireMCP.bootstrapConfig(
+          {
+            name,
+            command: args.command,
+            url: args.url,
+            timeout: args.timeout,
+          },
+          process.env,
+        )
+      } catch (error) {
+        prompts.log.error(error instanceof Error ? error.message : String(error))
+        prompts.outro("No changes made")
+        process.exitCode = 1
+        return
+      }
+
+      const configPath = args.global
+        ? await resolveConfigPath(Global.Path.config, true)
+        : await resolveConfigPath(ctx.worktree)
+      await addMcpToConfig(name, mcpConfig, configPath)
+
+      const target = mcpConfig.type === "remote" ? mcpConfig.url : mcpConfig.command.join(" ")
+      prompts.log.success(`Configured "${name}" in ${configPath}`)
+      prompts.log.info(target)
+      prompts.outro(`Run codefire-agent mcp doctor ${name} to verify it`)
+    })
+  }),
+})
+
+function doctorIcon(status: DiagnosticStatus) {
+  switch (status) {
+    case "pass":
+      return "✓"
+    case "warn":
+      return "⚠"
+    case "fail":
+      return "✗"
+  }
+}
+
+function sanitizeName(value: string) {
+  return value.replace(/[^a-zA-Z0-9_-]/g, "_")
+}
+
+export const McpDoctorCommand = effectCmd({
+  command: "doctor [name]",
+  describe: "check the CodeFire MCP server configuration",
+  builder: (yargs) =>
+    yargs.positional("name", {
+      describe: "name of the MCP server",
+      type: "string",
+    }),
+  handler: Effect.fn("Cli.mcp.doctor")(function* (args) {
+    UI.empty()
+    prompts.intro("CodeFire MCP Doctor")
+
+    const name = CodeFireMCP.mcpName(process.env, args.name)
+    const config = yield* Config.Service.use((cfg) => cfg.get())
+    const checks = CodeFireMCP.diagnostics(config, name, process.env)
+    let needsAttention = checks.some((check) => check.status === "fail")
+    for (const check of checks) {
+      prompts.log.info(`${doctorIcon(check.status)} ${check.label}: ${check.detail}`)
+    }
+
+    const entry = CodeFireMCP.configuredEntry(config, name)
+    if (entry) {
+      const mcp = yield* MCP.Service
+      const statuses = yield* mcp.status()
+      const status = statuses[name]
+      if (!status) {
+        prompts.log.warn(`○ status: "${name}" has not initialized`)
+        needsAttention = true
+      } else if (status.status === "connected") {
+        const tools = yield* mcp.tools()
+        const prefix = `${sanitizeName(name)}_`
+        const toolCount = Object.keys(tools).filter((tool) => tool.startsWith(prefix)).length
+        prompts.log.success(`✓ status: connected (${toolCount} tool${toolCount === 1 ? "" : "s"})`)
+      } else if (status.status === "failed") {
+        prompts.log.error(`✗ status: failed - ${status.error}`)
+        needsAttention = true
+      } else if (status.status === "needs_auth") {
+        prompts.log.warn(`⚠ status: needs authentication`)
+        needsAttention = true
+      } else if (status.status === "needs_client_registration") {
+        prompts.log.error(`✗ status: needs client registration - ${status.error}`)
+        needsAttention = true
+      } else {
+        prompts.log.warn(`○ status: ${status.status}`)
+        needsAttention = true
+      }
+    }
+
+    if (needsAttention) {
+      prompts.outro("CodeFire MCP needs attention")
+      process.exitCode = 1
+      return
+    }
+
+    prompts.outro("CodeFire MCP doctor complete")
   }),
 })
 

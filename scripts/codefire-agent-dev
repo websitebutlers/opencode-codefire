@@ -1,0 +1,31 @@
+#!/bin/sh
+set -eu
+
+script_path="$0"
+if [ -L "$script_path" ]; then
+  link_target="$(readlink "$script_path")"
+  case "$link_target" in
+    /*) script_path="$link_target" ;;
+    *) script_path="$(dirname "$script_path")/$link_target" ;;
+  esac
+fi
+
+root="$(cd "$(dirname "$script_path")/.." && pwd)"
+home_dir="${CODEFIRE_AGENT_HOME:-$HOME/.codefire-agent-dev}"
+
+mkdir -p \
+  "$home_dir/data" \
+  "$home_dir/config" \
+  "$home_dir/state" \
+  "$home_dir/cache" \
+  "$home_dir/tmp"
+
+export CODEFIRE_AGENT=1
+export XDG_DATA_HOME="$home_dir/data"
+export XDG_CONFIG_HOME="$home_dir/config"
+export XDG_STATE_HOME="$home_dir/state"
+export XDG_CACHE_HOME="$home_dir/cache"
+export TMPDIR="$home_dir/tmp"
+export OPENCODE_CONFIG_DIR="$home_dir/config/opencode"
+
+exec bun run --cwd "$root/packages/opencode" --conditions=browser ./src/index.ts "$@"

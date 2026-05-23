@@ -1,8 +1,13 @@
 import { expect, test } from "bun:test"
 
-const { DEFAULT_THEMES, allThemes, addTheme, hasTheme, resolveTheme } = await import(
+const { DEFAULT_THEME, DEFAULT_THEMES, allThemes, addTheme, hasTheme, resolveTheme } = await import(
   "../../../src/cli/cmd/tui/context/theme"
 )
+
+test("default theme uses the CodeFire orange theme", () => {
+  expect(DEFAULT_THEME).toBe("orng")
+  expect(resolveTheme(DEFAULT_THEMES[DEFAULT_THEME], "dark").primary.toInts()).toEqual([236, 91, 43, 255])
+})
 
 test("addTheme writes into module theme store", () => {
   const name = `plugin-theme-${Date.now()}`

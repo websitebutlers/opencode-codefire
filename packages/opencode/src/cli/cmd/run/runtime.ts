@@ -14,6 +14,7 @@
 //   4. runs the prompt queue until the footer closes.
 import { createOpencodeClient } from "@opencode-ai/sdk/v2"
 import { Flag } from "@opencode-ai/core/flag/flag"
+import { CodeFireLifecycle } from "@/codefire/lifecycle"
 import { createRunDemo } from "./demo"
 import { resolveDiffStyle, resolveFooterKeybinds, resolveModelInfo, resolveSessionInfo } from "./runtime.boot"
 import { createRuntimeLifecycle } from "./runtime.lifecycle"
@@ -176,6 +177,20 @@ async function runInteractiveRuntime(input: RunRuntimeInput): Promise<void> {
       const keybindTask = resolveFooterKeybinds()
       const diffTask = resolveDiffStyle()
       const ctx = await input.boot()
+      await CodeFireLifecycle.emit("runtime.started", {
+        directory: ctx.directory,
+        initialInput: !!input.initialInput,
+        resume: ctx.resume === true,
+        sessionID: ctx.sessionID || undefined,
+        agent: ctx.agent,
+        model: ctx.model
+          ? {
+              providerID: ctx.model.providerID,
+              modelID: ctx.model.modelID,
+            }
+          : undefined,
+        variant: ctx.variant,
+      })
       const modelTask = resolveModelInfo(ctx.sdk, ctx.directory, ctx.model)
       const sessionTask =
         ctx.resume === true
@@ -214,6 +229,14 @@ async function runInteractiveRuntime(input: RunRuntimeInput): Promise<void> {
         "opencode.model.variant": state.activeVariant,
         "session.id": state.sessionID || undefined,
       })
+      if (state.sessionID) {
+        void CodeFireLifecycle.emit("session.ready", {
+          directory: ctx.directory,
+          sessionID: state.sessionID,
+          sessionTitle: state.sessionTitle,
+          agent: state.agent,
+        })
+      }
       const ensureSession = () => {
         if (!input.resolveSession || state.sessionID) {
           return Promise.resolve()
@@ -227,6 +250,12 @@ async function runInteractiveRuntime(input: RunRuntimeInput): Promise<void> {
           state.sessionID = next.sessionID
           state.sessionTitle = next.sessionTitle ?? state.sessionTitle
           state.agent = next.agent
+          void CodeFireLifecycle.emit("session.ready", {
+            directory: ctx.directory,
+            sessionID: state.sessionID,
+            sessionTitle: state.sessionTitle,
+            agent: state.agent,
+          })
           setRunSpanAttributes(span, {
             "opencode.agent.name": state.agent,
             "session.id": state.sessionID,
@@ -571,6 +600,12 @@ async function runInteractiveRuntime(input: RunRuntimeInput): Promise<void> {
                   log?.write("session.new", {
                     sessionID: state.sessionID,
                   })
+                  void CodeFireLifecycle.emit("session.new", {
+                    directory: ctx.directory,
+                    sessionID: state.sessionID,
+                    sessionTitle: state.sessionTitle,
+                    agent: state.agent,
+                  })
                   footer.event({
                     type: "stream.subagent",
                     state: {
@@ -694,12 +729,24 @@ async function runInteractiveRuntime(input: RunRuntimeInput): Promise<void> {
         }
       } finally {
         const title = await resolveExitTitle(ctx, input, state)
+        await CodeFireLifecycle.emit("session.closed", {
+          directory: ctx.directory,
+          sessionID: state.sessionID || undefined,
+          sessionTitle: title ?? state.sessionTitle,
+          shown: state.shown,
+          prompts: state.history.length,
+        })
 
         await shell.close({
           showExit: state.shown && hasSession(input, state),
           sessionTitle: title,
           sessionID: state.sessionID,
           history: state.history,
+        })
+        await CodeFireLifecycle.emit("runtime.closed", {
+          directory: ctx.directory,
+          sessionID: state.sessionID || undefined,
+          shown: state.shown,
         })
       }
     },
