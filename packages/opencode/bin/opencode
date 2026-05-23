@@ -1,5 +1,10 @@
 #!/usr/bin/env node
 
+import { createRequire } from "module"
+import { fileURLToPath } from "url"
+
+const require = createRequire(import.meta.url)
+const __filename = fileURLToPath(import.meta.url)
 const childProcess = require("child_process")
 const fs = require("fs")
 const path = require("path")
@@ -43,7 +48,7 @@ function run(target) {
   })
 }
 
-const invokedName = path.basename(process.argv[1] || "")
+const invokedName = path.basename(process.argv[1] || "").replace(/\.(cmd|exe)$/i, "")
 if (invokedName === "codefire-agent") {
   process.env.CODEFIRE_AGENT = "1"
 }
