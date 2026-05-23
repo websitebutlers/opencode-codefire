@@ -3,7 +3,11 @@ import { spawnSync } from "child_process"
 import fs from "fs/promises"
 import os from "os"
 import path from "path"
-import { generatedCodeFireAgentWrapper, generatedPostinstallSkippedPlaceholder, generatedPublicPackage } from "../../script/publish"
+import {
+  generatedCodeFireAgentWrapper,
+  generatedPostinstallSkippedPlaceholder,
+  generatedPublicPackage,
+} from "../../script/publish-package"
 
 describe("codefire-agent bin alias", () => {
   test("package.json exposes codefire-agent beside opencode", async () => {
@@ -17,16 +21,19 @@ describe("codefire-agent bin alias", () => {
     try {
       const target = path.join(dir, "target.js")
 
-      await fs.writeFile(target, '#!/usr/bin/env node\nconsole.log(process.env.CODEFIRE_AGENT || "")\n')
+      await fs.writeFile(
+        target,
+        '#!/usr/bin/env node\nconsole.log(process.env.CODEFIRE_AGENT || "", process.argv.slice(2).join("|"))\nprocess.exit(19)\n',
+      )
       await fs.chmod(target, 0o755)
 
-      const result = spawnSync(process.execPath, [path.join(import.meta.dir, "../../bin/codefire-agent")], {
+      const result = spawnSync(process.execPath, [path.join(import.meta.dir, "../../bin/codefire-agent"), "alpha", "beta"], {
         encoding: "utf8",
         env: { ...process.env, OPENCODE_BIN_PATH: target },
       })
 
-      expect(result.status).toBe(0)
-      expect(result.stdout.trim()).toBe("1")
+      expect(result.status).toBe(19)
+      expect(result.stdout.trim()).toBe("1 alpha|beta")
     } finally {
       await fs.rm(dir, { recursive: true, force: true })
     }
@@ -97,7 +104,10 @@ describe("codefire-agent bin alias", () => {
       await fs.chmod(wrapper, 0o755)
       await fs.chmod(target, 0o755)
 
-      const result = spawnSync(process.execPath, [wrapper, "alpha", "--flag", "value"], { encoding: "utf8" })
+      const result =
+        process.platform === "win32"
+          ? spawnSync(process.execPath, [wrapper, "alpha", "--flag", "value"], { encoding: "utf8" })
+          : spawnSync(wrapper, ["alpha", "--flag", "value"], { encoding: "utf8" })
 
       expect(result.status).toBe(17)
       expect(JSON.parse(await Bun.file(output).text())).toEqual({
