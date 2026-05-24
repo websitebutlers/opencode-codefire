@@ -12,6 +12,7 @@ import { makeRuntime } from "@opencode-ai/core/effect/runtime"
 import semver from "semver"
 import { InstallationChannel, InstallationVersion } from "@opencode-ai/core/installation/version"
 import { NpmConfig } from "@opencode-ai/core/npm-config"
+import { CodeFire } from "@/codefire/codefire"
 
 const log = Log.create({ service: "installation" })
 
@@ -178,19 +179,28 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
         }
       }),
       method: Effect.fn("Installation.method")(function* () {
-        if (process.execPath.includes(path.join(".opencode", "bin"))) return "curl" as Method
-        if (process.execPath.includes(path.join(".local", "bin"))) return "curl" as Method
+        const isCodeFire = CodeFire.active()
+        if (!isCodeFire && process.execPath.includes(path.join(".opencode", "bin"))) return "curl" as Method
+        if (!isCodeFire && process.execPath.includes(path.join(".local", "bin"))) return "curl" as Method
         const exec = process.execPath.toLowerCase()
 
-        const checks: Array<{ name: Method; command: () => Effect.Effect<string> }> = [
-          { name: "npm", command: () => text(["npm", "list", "-g", "--depth=0"]) },
-          { name: "yarn", command: () => text(["yarn", "global", "list"]) },
-          { name: "pnpm", command: () => text(["pnpm", "list", "-g", "--depth=0"]) },
-          { name: "bun", command: () => text(["bun", "pm", "ls", "-g"]) },
-          { name: "brew", command: () => text(["brew", "list", "--formula", "opencode"]) },
-          { name: "scoop", command: () => text(["scoop", "list", "opencode"]) },
-          { name: "choco", command: () => text(["choco", "list", "--limit-output", "opencode"]) },
-        ]
+        // CodeFire only ships through npm/bun/pnpm — skip curl/brew/scoop/choco probes.
+        const checks: Array<{ name: Method; command: () => Effect.Effect<string> }> = isCodeFire
+          ? [
+              { name: "npm", command: () => text(["npm", "list", "-g", "--depth=0"]) },
+              { name: "pnpm", command: () => text(["pnpm", "list", "-g", "--depth=0"]) },
+              { name: "bun", command: () => text(["bun", "pm", "ls", "-g"]) },
+              { name: "yarn", command: () => text(["yarn", "global", "list"]) },
+            ]
+          : [
+              { name: "npm", command: () => text(["npm", "list", "-g", "--depth=0"]) },
+              { name: "yarn", command: () => text(["yarn", "global", "list"]) },
+              { name: "pnpm", command: () => text(["pnpm", "list", "-g", "--depth=0"]) },
+              { name: "bun", command: () => text(["bun", "pm", "ls", "-g"]) },
+              { name: "brew", command: () => text(["brew", "list", "--formula", "opencode"]) },
+              { name: "scoop", command: () => text(["scoop", "list", "opencode"]) },
+              { name: "choco", command: () => text(["choco", "list", "--limit-output", "opencode"]) },
+            ]
 
         checks.sort((a, b) => {
           const aMatches = exec.includes(a.name)
@@ -202,8 +212,11 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
 
         for (const check of checks) {
           const output = yield* check.command()
-          const installedName =
-            check.name === "brew" || check.name === "choco" || check.name === "scoop" ? "opencode" : "opencode-ai"
+          const installedName = isCodeFire
+            ? CodeFire.NpmPackageName
+            : check.name === "brew" || check.name === "choco" || check.name === "scoop"
+              ? "opencode"
+              : "opencode-ai"
           if (output.includes(installedName)) {
             return check.name
           }
@@ -213,6 +226,14 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
       }),
       latest: Effect.fn("Installation.latest")(function* (installMethod?: Method) {
         const detectedMethod = installMethod || (yield* result.method())
+        const isCodeFire = CodeFire.active()
+
+        // CodeFire ships only through npm. For any non-npm path, return the
+        // current installed version so the upgrade prompt never fires for
+        // distribution channels that don't carry @codefireapp/agent.
+        if (isCodeFire && detectedMethod !== "npm" && detectedMethod !== "bun" && detectedMethod !== "pnpm") {
+          return InstallationVersion
+        }
 
         if (detectedMethod === "brew") {
           const formula = yield* getBrewFormula()
@@ -231,9 +252,10 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
         }
 
         if (detectedMethod === "npm" || detectedMethod === "bun" || detectedMethod === "pnpm") {
+          const pkg = isCodeFire ? CodeFire.NpmPackageName : "opencode-ai"
           const response = yield* httpOk.execute(
             HttpClientRequest.get(
-              `${yield* NpmConfig.registry(process.cwd())}/opencode-ai/${InstallationChannel}`,
+              `${yield* NpmConfig.registry(process.cwd())}/${pkg}/${InstallationChannel}`,
             ).pipe(HttpClientRequest.acceptJson),
           )
           const data = yield* HttpClientResponse.schemaBodyJson(NpmPackage)(response)
@@ -269,19 +291,26 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProce
         return data.tag_name.replace(/^v/, "")
       }, Effect.orDie),
       upgrade: Effect.fn("Installation.upgrade")(function* (m: Method, target: string) {
+        const isCodeFire = CodeFire.active()
+        const npmPkg = isCodeFire ? CodeFire.NpmPackageName : "opencode-ai"
+        if (isCodeFire && m !== "npm" && m !== "bun" && m !== "pnpm") {
+          return yield* new UpgradeFailedError({
+            stderr: `${CodeFire.productName()} only supports npm-based upgrades. Run: npm install -g ${CodeFire.NpmPackageName}@${InstallationChannel}`,
+          })
+        }
         let upgradeResult: { code: number; stdout: string; stderr: string } | undefined
         switch (m) {
           case "curl":
             upgradeResult = yield* upgradeCurl(target)
             break
           case "npm":
-            upgradeResult = yield* run(["npm", "install", "-g", `opencode-ai@${target}`])
+            upgradeResult = yield* run(["npm", "install", "-g", `${npmPkg}@${target}`])
             break
           case "pnpm":
-            upgradeResult = yield* run(["pnpm", "install", "-g", `opencode-ai@${target}`])
+            upgradeResult = yield* run(["pnpm", "install", "-g", `${npmPkg}@${target}`])
             break
           case "bun":
-            upgradeResult = yield* run(["bun", "install", "-g", `opencode-ai@${target}`])
+            upgradeResult = yield* run(["bun", "install", "-g", `${npmPkg}@${target}`])
             break
           case "brew": {
             const formula = yield* getBrewFormula()

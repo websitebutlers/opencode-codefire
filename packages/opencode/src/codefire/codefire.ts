@@ -98,10 +98,20 @@ export function systemInstructions(argv = process.argv.slice(1), env: Env = proc
   ]
 }
 
+export function active(argv = process.argv.slice(1), env: Env = process.env) {
+  return detect(argv, env).mode !== "normal"
+}
+
+export const NpmPackageName = "@codefireapp/agent"
+export const GithubRepo = "websitebutlers/opencode-codefire"
+
 export const CodeFire = {
+  active,
   applyEnv,
   cliName,
   detect,
+  GithubRepo,
+  NpmPackageName,
   permissionRejectPlaceholder,
   productName,
   systemInstructions,
