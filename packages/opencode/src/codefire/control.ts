@@ -160,7 +160,9 @@ export function mcp(
   argv = process.argv.slice(1),
 ) {
   const name = CodeFireMCP.mcpName(env)
-  const entry = CodeFireMCP.configuredEntry(config, name)
+  const augmentedMcp = CodeFireMCP.ensureAutoRegistered(config, {}, env, argv)
+  const augmentedConfig: Pick<Config.Info, "mcp"> = { mcp: augmentedMcp }
+  const entry = CodeFireMCP.configuredEntry(augmentedConfig, name)
   const active = runtime(env, argv)
 
   return {
@@ -176,7 +178,7 @@ export function mcp(
       parentThreadID: active.parentThreadID ?? null,
       mode: active.mode,
     },
-    checks: CodeFireMCP.diagnostics(config, name, env),
+    checks: CodeFireMCP.diagnostics(augmentedConfig, name, env),
   }
 }
 

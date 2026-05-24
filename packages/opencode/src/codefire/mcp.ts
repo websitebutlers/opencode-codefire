@@ -4,6 +4,8 @@ import type { Config } from "@/config/config"
 import { ConfigMCP } from "@/config/mcp"
 import { CodeFire } from "./codefire"
 
+type ConfigMcpMap = NonNullable<Config.Info["mcp"]>
+
 type Env = Record<string, string | undefined>
 
 export const CODEFIRE_MCP_DEFAULT_NAME = "codefire"
@@ -215,10 +217,37 @@ export function diagnostics(config: Pick<Config.Info, "mcp">, name: string, env:
   return checks
 }
 
+/**
+ * Ensure the CodeFire MCP entry is present in the config when CodeFire is
+ * active. Returns a possibly-augmented copy of `config.mcp` — does NOT mutate
+ * the input or write to disk.
+ *
+ * - If CodeFire is not active, returns `config.mcp` unchanged (or undefined).
+ * - If an entry with the CodeFire MCP name is already present (even disabled
+ *   or invalid), it is preserved unchanged — explicit user config always wins.
+ * - Otherwise, injects the default bootstrap entry so downstream consumers
+ *   (MCP runtime, /codefire/v1/mcp diagnostics) see a configured server.
+ */
+export function ensureAutoRegistered(
+  config: Pick<Config.Info, "mcp">,
+  options: BootstrapOptions = {},
+  env: Env = process.env,
+  argv: string[] = process.argv.slice(1),
+): ConfigMcpMap | undefined {
+  if (!CodeFire.active(argv, env)) return config.mcp
+  const name = mcpName(env, options.name)
+  if (config.mcp?.[name] !== undefined) return config.mcp
+  return {
+    ...(config.mcp ?? {}),
+    [name]: bootstrapConfig(options, env),
+  } as ConfigMcpMap
+}
+
 export const CodeFireMCP = {
   bootstrapConfig,
   configuredEntry,
   diagnostics,
+  ensureAutoRegistered,
   mcpName,
   resolveExecutable,
   splitCommand,

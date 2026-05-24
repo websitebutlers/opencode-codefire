@@ -57,6 +57,44 @@ describe("CodeFire MCP bootstrap", () => {
     expect(checks.some((check) => check.status === "fail" && check.label === "config")).toBe(true)
   })
 
+  test("ensureAutoRegistered: leaves config alone when CodeFire is not active", () => {
+    const result = CodeFireMCP.ensureAutoRegistered({ mcp: { custom: { type: "local", command: ["foo"] } } }, {}, {}, [])
+    expect(result).toEqual({ custom: { type: "local", command: ["foo"] } })
+  })
+
+  test("ensureAutoRegistered: injects default codefire entry when CodeFire is active and none configured", () => {
+    const result = CodeFireMCP.ensureAutoRegistered({ mcp: {} }, {}, { CODEFIRE_AGENT: "1" }, [])
+    expect(result?.codefire).toEqual({
+      type: "local",
+      command: ["codefire", "mcp"],
+      enabled: true,
+      timeout: 30000,
+      environment: { CODEFIRE_AGENT: "1" },
+    })
+  })
+
+  test("ensureAutoRegistered: does NOT overwrite explicit user config", () => {
+    const user = { type: "remote" as const, url: "http://localhost:9999/mcp", enabled: true, timeout: 1000 }
+    const result = CodeFireMCP.ensureAutoRegistered({ mcp: { codefire: user } }, {}, { CODEFIRE_AGENT: "1" }, [])
+    expect(result?.codefire).toEqual(user)
+  })
+
+  test("ensureAutoRegistered: respects CODEFIRE_MCP_NAME override", () => {
+    const result = CodeFireMCP.ensureAutoRegistered(
+      { mcp: {} },
+      {},
+      { CODEFIRE_AGENT: "1", CODEFIRE_MCP_NAME: "workspace-memory" },
+      [],
+    )
+    expect(result?.["workspace-memory"]).toBeDefined()
+    expect(result?.codefire).toBeUndefined()
+  })
+
+  test("ensureAutoRegistered: passes through undefined when CodeFire is not active and no mcp set", () => {
+    const result = CodeFireMCP.ensureAutoRegistered({}, {}, {}, [])
+    expect(result).toBeUndefined()
+  })
+
   test("diagnoses a configured local command", () => {
     const checks = CodeFireMCP.diagnostics(
       {

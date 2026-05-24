@@ -14,6 +14,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js"
 import { Config } from "@/config/config"
 import { ConfigMCP } from "../config/mcp"
+import { CodeFireMCP } from "@/codefire/mcp"
 import * as Log from "@opencode-ai/core/util/log"
 import { NamedError } from "@opencode-ai/core/util/error"
 import { InstallationVersion } from "@opencode-ai/core/installation/version"
@@ -523,7 +524,7 @@ export const layer = Layer.effect(
       Effect.fn("MCP.state")(function* () {
         const cfg = yield* cfgSvc.get()
         const bridge = yield* EffectBridge.make()
-        const config = cfg.mcp ?? {}
+        const config = CodeFireMCP.ensureAutoRegistered(cfg) ?? {}
         const s: State = {
           status: {},
           clients: {},
@@ -611,7 +612,7 @@ export const layer = Layer.effect(
       const s = yield* InstanceState.get(state)
 
       const cfg = yield* cfgSvc.get()
-      const config = cfg.mcp ?? {}
+      const config = CodeFireMCP.ensureAutoRegistered(cfg) ?? {}
       const result: Record<string, Status> = {}
 
       for (const [key, mcp] of Object.entries(config)) {

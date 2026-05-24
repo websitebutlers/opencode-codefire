@@ -457,9 +457,9 @@ For a long-running desktop, use a follow-style tail (`fs.watch` + offset trackin
 
 The agent can connect to a CodeFire MCP server to get wiki/tasks/notes/context_search/etc. The config helper is `bootstrapConfig()` in `packages/opencode/src/codefire/mcp.ts`, and the runtime status is exposed at `GET /codefire/v1/mcp`.
 
-### Default behavior
+### Default behavior (beta.4+)
 
-If the desktop sets nothing, the agent's MCP entry defaults to:
+When `CodeFire.active()` is true (any of the identity triggers from §4) and no `mcp.codefire` entry is present in the user config, the agent **auto-registers** the entry at runtime:
 
 ```jsonc
 {
@@ -479,7 +479,16 @@ If the desktop sets nothing, the agent's MCP entry defaults to:
 }
 ```
 
+Auto-register is **runtime-only** — the user's config file on disk is never touched. The injection is visible to the MCP runtime, to `/codefire/v1/mcp`, and to the in-agent system prompt.
+
 This expects a `codefire` binary on PATH that responds to `codefire mcp` over stdio MCP. **The main CodeFire app should provide this binary** (or the desktop can override the command to its own MCP entrypoint).
+
+If the `codefire` bridge command isn't found on PATH, `/codefire/v1/mcp` returns:
+- `configured: true`, `enabled: true`, `transport: "local"`
+- `status: "failed"` (or `"uninitialized"` until first connect attempt)
+- `checks[]` includes a `"command is not executable from PATH"` diagnostic with the resolved command — surface that to the user.
+
+**Explicit user config always wins.** If `mcp.codefire` is set (even to `enabled: false`), auto-register is a no-op.
 
 ### Overriding from the desktop
 

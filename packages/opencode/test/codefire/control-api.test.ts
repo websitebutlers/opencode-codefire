@@ -202,13 +202,16 @@ describe("CodeFire control API", () => {
       )
 
       expect(response.status).toBe(200)
+      // beta.4+ auto-registers the codefire MCP entry when CodeFire is active,
+      // so even with no user config we see configured: true with the default
+      // local command. status is "uninitialized" until the actual MCP runtime
+      // connects to it (or "failed" if the bridge command isn't on PATH).
       expect(yield* Effect.promise(() => response.json())).toMatchObject({
         schemaVersion: 1,
         name: "codefire",
-        configured: false,
-        enabled: false,
-        transport: null,
-        status: "missing",
+        configured: true,
+        enabled: true,
+        transport: "local",
         toolCount: null,
         project: {
           id: "43b39618-0636-4cd6-ac25-23e7798392fc",
@@ -217,9 +220,9 @@ describe("CodeFire control API", () => {
         },
         checks: expect.arrayContaining([
           {
-            status: "fail",
+            status: "pass",
             label: "config",
-            detail: 'No MCP server named "codefire" is configured',
+            detail: '"codefire" is configured',
           },
         ]),
       })
