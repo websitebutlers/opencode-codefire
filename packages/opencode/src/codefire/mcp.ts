@@ -218,6 +218,21 @@ export function diagnostics(config: Pick<Config.Info, "mcp">, name: string, env:
 }
 
 /**
+ * Resolve the best default command for the CodeFire MCP server:
+ *
+ * 1. If the external `codefire` binary is on PATH (provided by the CodeFire
+ *    Desktop App), prefer the full-featured bridge `codefire mcp`.
+ * 2. Otherwise, fall back to the bundled minimal MCP server inside this binary
+ *    (`<self> mcp serve`). This guarantees the agent always has at least a
+ *    working MCP entry, even on standalone npm installs without the desktop app.
+ */
+export function resolvedDefaultCommand(env: Env = process.env): string[] {
+  const external = CODEFIRE_MCP_DEFAULT_COMMAND[0]
+  if (resolveExecutable(external, env)) return [...CODEFIRE_MCP_DEFAULT_COMMAND]
+  return [process.execPath, "mcp", "serve"]
+}
+
+/**
  * Ensure the CodeFire MCP entry is present in the config when CodeFire is
  * active. Returns a possibly-augmented copy of `config.mcp` — does NOT mutate
  * the input or write to disk.
@@ -225,8 +240,9 @@ export function diagnostics(config: Pick<Config.Info, "mcp">, name: string, env:
  * - If CodeFire is not active, returns `config.mcp` unchanged (or undefined).
  * - If an entry with the CodeFire MCP name is already present (even disabled
  *   or invalid), it is preserved unchanged — explicit user config always wins.
- * - Otherwise, injects the default bootstrap entry so downstream consumers
- *   (MCP runtime, /codefire/v1/mcp diagnostics) see a configured server.
+ * - Otherwise, injects an entry pointing at `resolvedDefaultCommand(env)`,
+ *   which prefers the external CodeFire Desktop bridge if available and falls
+ *   back to the bundled minimal MCP server inside this binary otherwise.
  */
 export function ensureAutoRegistered(
   config: Pick<Config.Info, "mcp">,
@@ -237,9 +253,15 @@ export function ensureAutoRegistered(
   if (!CodeFire.active(argv, env)) return config.mcp
   const name = mcpName(env, options.name)
   if (config.mcp?.[name] !== undefined) return config.mcp
+
+  const explicitCommand = envValue(options.command) ?? envValue(env.CODEFIRE_MCP_COMMAND)
+  const explicitUrl = envValue(options.url) ?? envValue(env.CODEFIRE_MCP_URL)
+  const fallbackCommand =
+    !explicitCommand && !explicitUrl ? JSON.stringify(resolvedDefaultCommand(env)) : undefined
+
   return {
     ...(config.mcp ?? {}),
-    [name]: bootstrapConfig(options, env),
+    [name]: bootstrapConfig({ ...options, command: fallbackCommand ?? options.command }, env),
   } as ConfigMcpMap
 }
 
@@ -250,5 +272,6 @@ export const CodeFireMCP = {
   ensureAutoRegistered,
   mcpName,
   resolveExecutable,
+  resolvedDefaultCommand,
   splitCommand,
 }

@@ -62,15 +62,26 @@ describe("CodeFire MCP bootstrap", () => {
     expect(result).toEqual({ custom: { type: "local", command: ["foo"] } })
   })
 
-  test("ensureAutoRegistered: injects default codefire entry when CodeFire is active and none configured", () => {
-    const result = CodeFireMCP.ensureAutoRegistered({ mcp: {} }, {}, { CODEFIRE_AGENT: "1" }, [])
+  test("ensureAutoRegistered: injects bundled fallback when codefire bridge is not on PATH", () => {
+    // PATH is empty, so the external `codefire` binary is not found and the
+    // helper should fall back to spawning the bundled MCP server.
+    const result = CodeFireMCP.ensureAutoRegistered({ mcp: {} }, {}, { CODEFIRE_AGENT: "1", PATH: "" }, [])
     expect(result?.codefire).toEqual({
       type: "local",
-      command: ["codefire", "mcp"],
+      command: [process.execPath, "mcp", "serve"],
       enabled: true,
       timeout: 30000,
       environment: { CODEFIRE_AGENT: "1" },
     })
+  })
+
+  test("resolvedDefaultCommand: returns external codefire mcp when bridge is on PATH", () => {
+    // Use the running test's own bash interpreter as a stand-in for an
+    // executable found via PATH. We point CODEFIRE_MCP_DEFAULT_COMMAND[0]'s
+    // resolveExecutable at /bin which exists on every POSIX system.
+    const result = CodeFireMCP.resolvedDefaultCommand({ PATH: "" })
+    // With empty PATH, codefire is NOT found, so we get the bundled fallback.
+    expect(result).toEqual([process.execPath, "mcp", "serve"])
   })
 
   test("ensureAutoRegistered: does NOT overwrite explicit user config", () => {

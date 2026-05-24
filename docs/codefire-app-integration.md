@@ -457,38 +457,57 @@ For a long-running desktop, use a follow-style tail (`fs.watch` + offset trackin
 
 The agent can connect to a CodeFire MCP server to get wiki/tasks/notes/context_search/etc. The config helper is `bootstrapConfig()` in `packages/opencode/src/codefire/mcp.ts`, and the runtime status is exposed at `GET /codefire/v1/mcp`.
 
-### Default behavior (beta.4+)
+### Default behavior (beta.5+)
 
-When `CodeFire.active()` is true (any of the identity triggers from §4) and no `mcp.codefire` entry is present in the user config, the agent **auto-registers** the entry at runtime:
+When `CodeFire.active()` is true (any of the identity triggers from §4) and no `mcp.codefire` entry is present in the user config, the agent **auto-registers** an MCP entry at runtime. The command resolution is a smart two-tier fallback:
 
-```jsonc
-{
-  "codefire": {
-    "type": "local",
-    "command": ["codefire", "mcp"],
-    "enabled": true,
-    "timeout": 30000,
-    "environment": {
-      "CODEFIRE_AGENT": "1",
-      "CODEFIRE_AGENT_CHAT": "<copied if set>",
-      "CODEFIRE_PROJECT_ID": "<copied if set>",
-      "CODEFIRE_PARENT_THREAD_ID": "<copied if set>",
-      "CODEFIRE_HANDOFF_TITLE": "<copied if set>"
-    }
-  }
-}
-```
+1. **If the external `codefire` binary is on PATH** (typically because the user has the CodeFire Desktop App installed), the entry points at the full-featured bridge:
+   ```jsonc
+   {
+     "codefire": {
+       "type": "local",
+       "command": ["codefire", "mcp"],
+       "enabled": true,
+       "timeout": 30000,
+       "environment": { "CODEFIRE_AGENT": "1", "CODEFIRE_PROJECT_ID": "<copied if set>", ... }
+     }
+   }
+   ```
+   This unlocks wiki pages, tasks, notes, semantic `context_search`, `agent_request_handoff`, etc.
+
+2. **If the external bridge isn't found, the entry falls back to the bundled minimal MCP server** shipped inside the npm package itself:
+   ```jsonc
+   {
+     "codefire": {
+       "type": "local",
+       "command": ["<process.execPath>", "mcp", "serve"],
+       "enabled": true,
+       "timeout": 30000,
+       "environment": { "CODEFIRE_AGENT": "1", ... }
+     }
+   }
+   ```
+   The bundled server registers as `codefire-agent-bundled` and exposes a single `codefire_info` tool that explains how to enable the full feature set. This guarantees the agent always has *some* MCP entry that successfully connects — better than `status: "failed"` for standalone users.
 
 Auto-register is **runtime-only** — the user's config file on disk is never touched. The injection is visible to the MCP runtime, to `/codefire/v1/mcp`, and to the in-agent system prompt.
 
-This expects a `codefire` binary on PATH that responds to `codefire mcp` over stdio MCP. **The main CodeFire app should provide this binary** (or the desktop can override the command to its own MCP entrypoint).
-
-If the `codefire` bridge command isn't found on PATH, `/codefire/v1/mcp` returns:
-- `configured: true`, `enabled: true`, `transport: "local"`
-- `status: "failed"` (or `"uninitialized"` until first connect attempt)
-- `checks[]` includes a `"command is not executable from PATH"` diagnostic with the resolved command — surface that to the user.
-
 **Explicit user config always wins.** If `mcp.codefire` is set (even to `enabled: false`), auto-register is a no-op.
+
+### How the desktop app should provide the rich MCP bridge
+
+When you ship the CodeFire Desktop App, place a `codefire` (or `codefire.exe` on Windows) binary on the user's PATH that, when invoked as `codefire mcp`, runs an stdio MCP server with the full feature set. The Terminal Agent auto-detects this on startup; no other coordination needed.
+
+If the desktop spawns the agent itself (sidecar pattern), you can also point at your in-process MCP server directly:
+
+```ts
+env: {
+  ...process.env,
+  CODEFIRE_AGENT: "1",
+  CODEFIRE_MCP_COMMAND: JSON.stringify([process.execPath, "/path/to/your/mcp-bridge.js"]),
+}
+```
+
+This is the most reliable path — bypasses PATH resolution entirely.
 
 ### Overriding from the desktop
 

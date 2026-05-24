@@ -105,8 +105,18 @@ export const McpCommand = cmd({
       .command(McpLogoutCommand)
       .command(McpDebugCommand)
       .command(McpDoctorCommand)
+      .command(McpServeCommand)
       .demandCommand(),
   async handler() {},
+})
+
+export const McpServeCommand = cmd({
+  command: "serve",
+  describe: "run the bundled minimal CodeFire MCP server over stdio",
+  async handler() {
+    const { startMinimalMcpServer } = await import("@/codefire/mcp-server")
+    await startMinimalMcpServer()
+  },
 })
 
 export const McpListCommand = effectCmd({
