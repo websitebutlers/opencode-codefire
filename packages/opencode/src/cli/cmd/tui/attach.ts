@@ -5,10 +5,11 @@ import { TuiConfig } from "@/cli/cmd/tui/config/tui"
 import { errorMessage } from "@/util/error"
 import { validateSession } from "./validate-session"
 import { ServerAuth } from "@/server/auth"
+import { CodeFire } from "@/codefire/codefire"
 
 export const AttachCommand = cmd({
   command: "attach <url>",
-  describe: "attach to a running opencode server",
+  describe: `attach to a running ${CodeFire.productName()} server`,
   builder: (yargs) =>
     yargs
       .positional("url", {

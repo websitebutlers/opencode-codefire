@@ -10,6 +10,7 @@
   },
   "exports": {
     ".": "./src/index.ts",
+    "./codefire": "./src/codefire.ts",
     "./client": "./src/client.ts",
     "./server": "./src/server.ts",
     "./v2": "./src/v2/index.ts",

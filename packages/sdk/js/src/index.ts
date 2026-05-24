@@ -1,4 +1,5 @@
 export * from "./client.js"
+export * from "./codefire.js"
 export * from "./server.js"
 
 import { createOpencodeClient } from "./client.js"

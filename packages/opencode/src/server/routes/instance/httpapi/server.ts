@@ -61,6 +61,7 @@ import { InstanceHttpApi, RootHttpApi } from "./api"
 import { PublicApi } from "./public"
 import { authorizationLayer, authorizationRouterMiddleware, v2AuthorizationLayer } from "./middleware/authorization"
 import { EventApi } from "./groups/event"
+import { codefireHandlers } from "./handlers/codefire"
 import { eventHandlers } from "./handlers/event"
 import { configHandlers } from "./handlers/config"
 import { controlHandlers } from "./handlers/control"
@@ -109,7 +110,7 @@ const authOnlyRouterLayer = authorizationRouterMiddleware.layer.pipe(Layer.provi
 const httpApiAuthLayer = authorizationLayer.pipe(Layer.provide(ServerAuth.Config.defaultLayer))
 const v2HttpApiAuthLayer = v2AuthorizationLayer.pipe(Layer.provide(ServerAuth.Config.defaultLayer))
 const rootApiRoutes = HttpApiBuilder.layer(RootHttpApi).pipe(
-  Layer.provide([controlHandlers, globalHandlers]),
+  Layer.provide([codefireHandlers, controlHandlers, globalHandlers]),
   Layer.provide(schemaErrorLayer),
   Layer.provide(httpApiAuthLayer),
 )

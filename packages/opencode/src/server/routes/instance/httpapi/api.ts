@@ -3,6 +3,7 @@ import { HttpApi } from "effect/unstable/httpapi"
 import { BusEvent } from "@/bus/bus-event"
 import { SyncEvent } from "@/sync"
 import { ConfigApi } from "./groups/config"
+import { CodeFireApi } from "./groups/codefire"
 import { ControlApi } from "./groups/control"
 import { EventApi } from "./groups/event"
 import { ExperimentalApi } from "./groups/experimental"
@@ -28,6 +29,7 @@ const EventSchema = Schema.Union(BusEvent.effectPayloads()).annotate({ identifie
 const SyncEventSchemas = SyncEvent.effectPayloads()
 
 export const RootHttpApi = HttpApi.make("opencode-root")
+  .addHttpApi(CodeFireApi)
   .addHttpApi(ControlApi)
   .addHttpApi(GlobalApi)
   .middleware(SchemaErrorMiddleware)

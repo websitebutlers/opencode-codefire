@@ -24,7 +24,13 @@ const archMap = {
 
 const platform = platformMap[os.platform()] ?? os.platform()
 const arch = archMap[os.arch()] ?? os.arch()
-const base = `opencode-${platform}-${arch}`
+function optionalPackage(name) {
+  if (packageJson.optionalDependencies?.[name]) return name
+  if (packageJson.name === "@codefireapp/agent") return `@codefireapp/agent-${name.replace(/^opencode-/, "")}`
+  return name
+}
+
+const base = optionalPackage(`opencode-${platform}-${arch}`)
 const sourceBinary = platform === "windows" ? "opencode.exe" : "opencode"
 const targetBinary = path.join(__dirname, "bin", "opencode.exe")
 
@@ -127,7 +133,8 @@ function installPackage(name) {
   const version = packageJson.optionalDependencies?.[name]
   if (!version) return
 
-  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "opencode-install-"))
+  const prefix = packageJson.name === "@codefireapp/agent" ? "codefire-agent-install-" : "opencode-install-"
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), prefix))
   try {
     const result = childProcess.spawnSync(
       "npm",
@@ -175,7 +182,9 @@ function main() {
   }
 
   throw new Error(
-    `It seems your package manager failed to install the right opencode CLI package. Try manually installing ${packageNames()
+    `It seems your package manager failed to install the right ${
+      packageJson.name === "@codefireapp/agent" ? "CodeFire Terminal Agent" : "opencode CLI"
+    } package. Try manually installing ${packageNames()
       .map((name) => JSON.stringify(name))
       .join(" or ")}.`,
   )

@@ -82,6 +82,9 @@ describe("CodeFire", () => {
 
     expect(instructions).toHaveLength(1)
     expect(instructions[0]).toContain("CodeFire Agent Harness")
+    expect(instructions[0]).toContain("CodeFire Terminal Agent")
+    expect(instructions[0]).toContain("OpenCode engine")
+    expect(instructions[0]).not.toContain("CodeFire-oriented OpenCode harness")
     expect(instructions[0]).toContain("get_current_project")
     expect(instructions[0]).toContain("context_search")
     expect(instructions[0]).toContain("agent_request_handoff")

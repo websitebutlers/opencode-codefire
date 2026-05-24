@@ -4,6 +4,8 @@ import pkg from "../package.json"
 import { Script } from "@opencode-ai/script"
 import { fileURLToPath } from "url"
 import {
+  CodeFirePublicPackageName,
+  generatedCodeFireBinaryPackageName,
   generatedCodeFireAgentWrapper,
   generatedPostinstallSkippedPlaceholder,
   generatedPublicPackage,
@@ -31,8 +33,20 @@ async function main() {
 
   const binaries: Record<string, string> = {}
   for (const filepath of new Bun.Glob("*/package.json").scanSync({ cwd: "./dist" })) {
-    const pkg = await Bun.file(`./dist/${filepath}`).json()
-    binaries[pkg.name] = pkg.version
+    const binaryPackagePath = `./dist/${filepath}`
+    const pkg = await Bun.file(binaryPackagePath).json()
+    const codefireName = generatedCodeFireBinaryPackageName(pkg.name)
+    await Bun.file(binaryPackagePath).write(
+      JSON.stringify(
+        {
+          ...pkg,
+          name: codefireName,
+        },
+        null,
+        2,
+      ),
+    )
+    binaries[codefireName] = pkg.version
   }
   console.log("binaries", binaries)
   const version = Object.values(binaries)[0]
@@ -41,7 +55,9 @@ async function main() {
   await $`mkdir -p ./dist/${pkg.name}/bin`
   await $`cp ./script/postinstall.mjs ./dist/${pkg.name}/postinstall.mjs`
   await Bun.file(`./dist/${pkg.name}/LICENSE`).write(await Bun.file("../../LICENSE").text())
-  await Bun.file(`./dist/${pkg.name}/bin/${pkg.name}.exe`).write(generatedPostinstallSkippedPlaceholder(pkg.name))
+  await Bun.file(`./dist/${pkg.name}/bin/${pkg.name}.exe`).write(
+    generatedPostinstallSkippedPlaceholder(CodeFirePublicPackageName),
+  )
   await Bun.file(`./dist/${pkg.name}/bin/codefire-agent`).write(generatedCodeFireAgentWrapper())
 
   await Bun.file(`./dist/${pkg.name}/package.json`).write(
@@ -53,10 +69,11 @@ async function main() {
   )
 
   const tasks = Object.entries(binaries).map(async ([name]) => {
-    await publish(`./dist/${name}`, name, binaries[name])
+    const dir = name.replace(`${CodeFirePublicPackageName}-`, "")
+    await publish(`./dist/${pkg.name}-${dir}`, name, binaries[name])
   })
   await Promise.all(tasks)
-  await publish(`./dist/${pkg.name}`, `${pkg.name}-ai`, version)
+  await publish(`./dist/${pkg.name}`, CodeFirePublicPackageName, version)
 
   const image = "ghcr.io/anomalyco/opencode"
   const platforms = "linux/amd64,linux/arm64"

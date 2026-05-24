@@ -403,6 +403,7 @@
       "version": "1.15.10",
       "bin": {
         "opencode": "./bin/opencode",
+        "codefire-agent": "./bin/codefire-agent",
       },
       "dependencies": {
         "@actions/core": "1.11.1",

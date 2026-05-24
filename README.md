@@ -1,3 +1,49 @@
+# CodeFire Terminal Agent
+
+> A [CodeFire](https://github.com/websitebutlers/opencode-codefire) fork of [OpenCode](https://opencode.ai), repackaged as `@codefireapp/agent` and shipped as the `codefire-agent` CLI. Designed to be driven directly from the terminal or embedded into the CodeFire desktop app via the SDK and control API.
+
+## Install
+
+```bash
+npm install -g @codefireapp/agent@beta
+```
+
+Then run:
+
+```bash
+codefire-agent
+```
+
+State lives in `~/.codefire-agent/` (isolated from any existing `opencode` install so the two can coexist on the same machine).
+
+### Other installation methods
+
+CodeFire Terminal Agent currently ships only through npm. The Homebrew, Scoop, AUR, and Linux package distributions listed further down in this README are inherited from the upstream OpenCode project — they install the original `opencode` CLI, not `codefire-agent`.
+
+### Upgrade
+
+```bash
+npm install -g @codefireapp/agent@beta   # pin to beta channel
+npm install -g @codefireapp/agent        # latest stable (when promoted)
+```
+
+### Uninstall
+
+```bash
+npm uninstall -g @codefireapp/agent
+rm -rf ~/.codefire-agent                 # optional: discard local agent state
+```
+
+## About the fork
+
+The fork boundary is intentionally narrow. The CodeFire-specific code lives in `packages/opencode/src/codefire/*` (runtime detection, MCP bootstrap, lifecycle JSONL emission, isolated wrapper bin) and `packages/opencode/script/publish-package.ts` (the publish-time package rename). Everything else mirrors upstream OpenCode so future merges stay cheap.
+
+For development, build, and verification details see `AGENTS.md` and the wiki pages in CodeFire ("CodeFire Agent Harness", "NPM Publishing — @codefireapp/agent Process and Gotchas", "Distribution and Go-Live Plan").
+
+---
+
+The remainder of this README is the upstream OpenCode README, kept for attribution and reference.
+
 <p align="center">
   <a href="https://opencode.ai">
     <picture>

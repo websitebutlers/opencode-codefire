@@ -1,6 +1,9 @@
 import type { Argv, InferredOptionTypes } from "yargs"
 import { Config } from "@/config/config"
 import { Effect } from "effect"
+import { CodeFire } from "@/codefire/codefire"
+
+const mdnsDomain = CodeFire.detect().mode === "normal" ? "opencode.local" : "codefire-agent.local"
 
 const options = {
   port: {
@@ -20,8 +23,8 @@ const options = {
   },
   "mdns-domain": {
     type: "string" as const,
-    describe: "custom domain name for mDNS service (default: opencode.local)",
-    default: "opencode.local",
+    describe: `custom domain name for mDNS service (default: ${mdnsDomain})`,
+    default: mdnsDomain,
   },
   cors: {
     type: "string" as const,

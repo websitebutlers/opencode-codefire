@@ -5,12 +5,15 @@ type Env = Record<string, string | undefined>
 
 type Runtime = ReturnType<typeof CodeFire.detect>
 
-export type LifecycleEvent =
-  | "runtime.started"
-  | "session.ready"
-  | "session.new"
-  | "session.closed"
-  | "runtime.closed"
+export const LIFECYCLE_EVENTS = [
+  "runtime.started",
+  "session.ready",
+  "session.new",
+  "session.closed",
+  "runtime.closed",
+] as const
+
+export type LifecycleEvent = (typeof LIFECYCLE_EVENTS)[number]
 
 export type LifecyclePayload = {
   kind: "codefire.agent.lifecycle"
@@ -68,6 +71,7 @@ export async function emit(
 
 export const CodeFireLifecycle = {
   emit,
+  events: LIFECYCLE_EVENTS,
   payload,
   shouldEmit,
 }

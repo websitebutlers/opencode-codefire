@@ -27,6 +27,7 @@ import { RuntimeFlags } from "@/effect/runtime-flags"
 import { InstanceRef } from "@/effect/instance-ref"
 import { FormatError, FormatUnknownError } from "../error"
 import { INTERACTIVE_INPUT_ERROR, resolveInteractiveStdin } from "./run/runtime.stdin"
+import { CodeFire } from "@/codefire/codefire"
 
 const runtimeTask = import("./run/runtime")
 type ModelInput = Parameters<OpencodeClient["session"]["prompt"]>[0]["model"]
@@ -126,7 +127,7 @@ async function toolError(part: ToolPart) {
 
 export const RunCommand = effectCmd({
   command: "run [message..]",
-  describe: "run opencode with a message",
+  describe: `run ${CodeFire.productName()} with a message`,
   // --attach connects to a remote server (no local instance needed); the
   // default path runs an in-process server and needs the project instance.
   instance: (args) => !args.attach,
@@ -190,7 +191,7 @@ export const RunCommand = effectCmd({
       })
       .option("attach", {
         type: "string",
-        describe: "attach to a running opencode server (e.g., http://localhost:4096)",
+        describe: `attach to a running ${CodeFire.productName()} server (e.g., http://localhost:4096)`,
       })
       .option("password", {
         alias: ["p"],

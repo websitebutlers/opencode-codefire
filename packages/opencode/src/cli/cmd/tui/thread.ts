@@ -21,6 +21,7 @@ import {
   sanitizedProcessEnv,
 } from "@opencode-ai/core/util/opencode-process"
 import { validateSession } from "./validate-session"
+import { CodeFire } from "@/codefire/codefire"
 
 declare global {
   const OPENCODE_WORKER_PATH: string
@@ -78,12 +79,12 @@ export function resolveThreadDirectory(project?: string, envPWD = process.env.PW
 
 export const TuiThreadCommand = cmd({
   command: "$0 [project]",
-  describe: "start opencode tui",
+  describe: `start ${CodeFire.productName()} terminal interface`,
   builder: (yargs) =>
     withNetworkOptions(yargs)
       .positional("project", {
         type: "string",
-        describe: "path to start opencode in",
+        describe: `path to start ${CodeFire.productName()} in`,
       })
       .option("model", {
         type: "string",

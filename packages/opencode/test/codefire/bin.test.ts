@@ -4,6 +4,7 @@ import fs from "fs/promises"
 import os from "os"
 import path from "path"
 import {
+  generatedCodeFireBinaryPackageName,
   generatedCodeFireAgentWrapper,
   generatedPostinstallSkippedPlaceholder,
   generatedPublicPackage,
@@ -55,19 +56,30 @@ describe("codefire-agent bin alias", () => {
     }
   })
 
-  test("publish helpers expose the public codefire-agent package alias", () => {
+  test("publish helpers expose the isolated public CodeFire package", () => {
     const manifest = generatedPublicPackage({
       name: "opencode",
       version: "1.2.3",
       license: "MIT",
-      binaries: { "opencode-darwin-arm64": "1.2.3" },
+      binaries: {
+        [generatedCodeFireBinaryPackageName("opencode-darwin-arm64")]: "1.2.3",
+      },
     })
-    expect(manifest.name).toBe("opencode-ai")
+    expect(manifest.name).toBe("@codefireapp/agent")
+    expect(manifest.description).toBe("CodeFire Terminal Agent")
     expect(manifest.bin).toEqual({
-      opencode: "./bin/opencode.exe",
       "codefire-agent": "./bin/codefire-agent",
     })
-    expect(manifest.optionalDependencies).toEqual({ "opencode-darwin-arm64": "1.2.3" })
+    expect(manifest.keywords).toContain("codefire")
+    expect(manifest.optionalDependencies).toEqual({ "@codefireapp/agent-darwin-arm64": "1.2.3" })
+    expect(JSON.stringify(manifest.bin)).not.toContain("opencode")
+  })
+
+  test("publish helpers map platform packages into the CodeFire npm scope", () => {
+    expect(generatedCodeFireBinaryPackageName("opencode-darwin-arm64")).toBe("@codefireapp/agent-darwin-arm64")
+    expect(generatedCodeFireBinaryPackageName("opencode-linux-x64-baseline-musl")).toBe(
+      "@codefireapp/agent-linux-x64-baseline-musl",
+    )
   })
 
   test("publish helper returns a valid codefire-agent wrapper", async () => {
@@ -90,10 +102,55 @@ describe("codefire-agent bin alias", () => {
   })
 
   test("postinstall-skipped placeholder has a POSIX shebang", () => {
-    const placeholder = generatedPostinstallSkippedPlaceholder("opencode")
+    const placeholder = generatedPostinstallSkippedPlaceholder("@codefireapp/agent")
     expect(placeholder.startsWith("#!/bin/sh\n")).toBe(true)
     expect(placeholder).toContain("postinstall script was not run")
+    expect(placeholder).toContain("node_modules/@codefireapp/agent")
     expect(placeholder).toContain("exit 1")
+  })
+
+  test("generated public package packs without exposing an opencode bin", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "codefire-agent-pack-"))
+    try {
+      const bin = path.join(dir, "bin")
+      await fs.mkdir(bin)
+      await fs.writeFile(
+        path.join(dir, "package.json"),
+        JSON.stringify(
+          generatedPublicPackage({
+            name: "opencode",
+            version: "1.2.3",
+            license: "MIT",
+            binaries: {
+              "@codefireapp/agent-darwin-arm64": "1.2.3",
+            },
+          }),
+          null,
+          2,
+        ),
+      )
+      await fs.writeFile(path.join(dir, "postinstall.mjs"), "")
+      await fs.writeFile(path.join(bin, "codefire-agent"), generatedCodeFireAgentWrapper())
+      await fs.writeFile(path.join(bin, "opencode.exe"), generatedPostinstallSkippedPlaceholder("@codefireapp/agent"))
+
+      const result = spawnSync("npm", ["pack", "--dry-run", "--json"], {
+        cwd: dir,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          npm_config_cache: path.join(dir, ".npm-cache"),
+        },
+      })
+      const manifest = JSON.parse(await Bun.file(path.join(dir, "package.json")).text())
+
+      expect(result.status).toBe(0)
+      expect(manifest.name).toBe("@codefireapp/agent")
+      expect(manifest.description).toBe("CodeFire Terminal Agent")
+      expect(manifest.bin).toEqual({ "codefire-agent": "./bin/codefire-agent" })
+      expect(JSON.stringify(manifest.bin)).not.toContain("opencode")
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
   })
 
   test("generated codefire-agent wrapper propagates env, args, and exit code", async () => {

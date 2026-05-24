@@ -1,3 +1,10 @@
+export const CodeFirePublicPackageName = "@codefireapp/agent"
+
+export function generatedCodeFireBinaryPackageName(name: string) {
+  const suffix = name.startsWith("opencode-") ? name.slice("opencode-".length) : name
+  return `${CodeFirePublicPackageName}-${suffix}`
+}
+
 export function generatedCodeFireAgentWrapper() {
   return [
     "#!/usr/bin/env node",
@@ -74,15 +81,15 @@ export function generatedCodeFireAgentWrapper() {
 export function generatedPostinstallSkippedPlaceholder(name: string) {
   return [
     "#!/bin/sh",
-    `echo "Error: ${name}-ai's postinstall script was not run." >&2`,
+    `echo "Error: ${name}'s postinstall script was not run." >&2`,
     'echo "" >&2',
     'echo "This occurs when using --ignore-scripts during installation, or when using a" >&2',
     'echo "package manager like pnpm that does not run postinstall scripts by default." >&2',
     'echo "" >&2',
     'echo "To fix this, run the postinstall script manually:" >&2',
-    `echo "  cd node_modules/${name}-ai && node postinstall.mjs" >&2`,
+    `echo "  cd node_modules/${name} && node postinstall.mjs" >&2`,
     'echo "" >&2',
-    `echo "Or reinstall ${name}-ai without the --ignore-scripts flag." >&2`,
+    `echo "Or reinstall ${name} without the --ignore-scripts flag." >&2`,
     "exit 1",
     "",
   ].join("\n")
@@ -95,9 +102,10 @@ export function generatedPublicPackage(input: {
   binaries: Record<string, string>
 }) {
   return {
-    name: input.name + "-ai",
+    name: CodeFirePublicPackageName,
+    description: "CodeFire Terminal Agent",
+    keywords: ["codefire", "agent", "terminal", "coding-agent"],
     bin: {
-      [input.name]: `./bin/${input.name}.exe`,
       "codefire-agent": "./bin/codefire-agent",
     },
     scripts: {

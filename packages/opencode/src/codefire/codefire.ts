@@ -50,6 +50,24 @@ export function cliName(argv = process.argv.slice(1), env: Env = process.env) {
   return detect(argv, env).cliName
 }
 
+export function productName(argv = process.argv.slice(1), env: Env = process.env) {
+  return detect(argv, env).mode === "normal" ? "OpenCode" : "CodeFire"
+}
+
+export function terminalTitle(argv = process.argv.slice(1), env: Env = process.env, title?: string) {
+  const runtime = detect(argv, env)
+  const base = runtime.mode === "normal" ? "OpenCode" : "CodeFire"
+  if (!title) return base
+
+  const prefix = runtime.mode === "normal" ? "OC" : "CF"
+  const shortened = title.length > 40 ? title.slice(0, 37) + "..." : title
+  return `${prefix} | ${shortened}`
+}
+
+export function permissionRejectPlaceholder(argv = process.argv.slice(1), env: Env = process.env) {
+  return `Tell ${productName(argv, env)} what to do differently`
+}
+
 export function systemInstructions(argv = process.argv.slice(1), env: Env = process.env) {
   const runtime = detect(argv, env)
   if (runtime.mode === "normal") return []
@@ -64,7 +82,7 @@ export function systemInstructions(argv = process.argv.slice(1), env: Env = proc
     [
       "CodeFire Agent Harness",
       "",
-      "You are running as `codefire-agent`, a CodeFire-oriented OpenCode harness.",
+      "You are running as `codefire-agent`, the CodeFire Terminal Agent backed by the OpenCode engine.",
       "For non-trivial project work, prefer CodeFire MCP context before broad source searches:",
       "- Call `get_current_project` to confirm the project.",
       '- Call `list_tasks` with `status: "in_progress"` to check active work.',
@@ -84,5 +102,8 @@ export const CodeFire = {
   applyEnv,
   cliName,
   detect,
+  permissionRejectPlaceholder,
+  productName,
   systemInstructions,
+  terminalTitle,
 }
