@@ -14,6 +14,7 @@ export type Event =
   | EventServerInstanceDisposed
   | EventFileEdited
   | EventFileWatcherUpdated
+  | EventBackgroundJobUpdated
   | EventLspClientDiagnostics
   | EventLspUpdated
   | EventMessagePartDelta
@@ -21,24 +22,24 @@ export type Event =
   | EventPermissionReplied
   | EventSessionDiff
   | EventSessionError
+  | EventSessionStatus
+  | EventSessionIdle
+  | EventSessionRewindArchived
+  | EventMcpToolsChanged
+  | EventMcpBrowserOpenFailed
   | EventQuestionAsked
   | EventQuestionReplied
   | EventQuestionRejected
-  | EventTodoUpdated
-  | EventSessionStatus
-  | EventSessionIdle
-  | EventMcpToolsChanged
-  | EventMcpBrowserOpenFailed
   | EventCommandExecuted
   | EventProjectUpdated
   | EventSessionCompacted
-  | EventSessionRewindArchived
+  | EventWorktreeReady
+  | EventWorktreeFailed
+  | EventTodoUpdated
   | EventVcsBranchUpdated
   | EventWorkspaceReady
   | EventWorkspaceFailed
   | EventWorkspaceStatus
-  | EventWorktreeReady
-  | EventWorktreeFailed
   | EventPtyCreated
   | EventPtyUpdated
   | EventPtyExited
@@ -56,6 +57,7 @@ export type Event =
   | EventSessionNextModelSwitched
   | EventSessionNextPrompted
   | EventSessionNextSynthetic
+  | EventSessionNextSubagentCompleted
   | EventSessionNextShellStarted
   | EventSessionNextShellEnded
   | EventSessionNextStepStarted
@@ -342,6 +344,21 @@ export type EventTuiSessionSelect = {
   }
 }
 
+export type BackgroundJobInfo = {
+  id: string
+  type: string
+  title?: string
+  status: "running" | "completed" | "error" | "cancelled"
+  groupID?: string
+  started_at: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  completed_at?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  output?: string
+  error?: string
+  metadata?: {
+    [key: string]: unknown
+  }
+}
+
 export type PermissionRequest = {
   id: string
   sessionID: string
@@ -427,6 +444,28 @@ export type ApiError = {
   }
 }
 
+export type SessionStatus =
+  | {
+      type: "idle"
+    }
+  | {
+      type: "retry"
+      attempt: number
+      message: string
+      action?: {
+        reason: string
+        provider: string
+        title: string
+        message: string
+        label: string
+        link?: string
+      }
+      next: number
+    }
+  | {
+      type: "busy"
+    }
+
 export type QuestionOption = {
   /**
    * Display text (1-5 words, concise)
@@ -483,43 +522,6 @@ export type QuestionRejected = {
   requestID: string
 }
 
-export type Todo = {
-  /**
-   * Brief description of the task
-   */
-  content: string
-  /**
-   * Current status of the task: pending, in_progress, completed, cancelled
-   */
-  status: string
-  /**
-   * Priority level of the task: high, medium, low
-   */
-  priority: string
-}
-
-export type SessionStatus =
-  | {
-      type: "idle"
-    }
-  | {
-      type: "retry"
-      attempt: number
-      message: string
-      action?: {
-        reason: string
-        provider: string
-        title: string
-        message: string
-        label: string
-        link?: string
-      }
-      next: number
-    }
-  | {
-      type: "busy"
-    }
-
 export type Project = {
   id: string
   worktree: string
@@ -542,6 +544,21 @@ export type Project = {
     initialized?: number
   }
   sandboxes: Array<string>
+}
+
+export type Todo = {
+  /**
+   * Brief description of the task
+   */
+  content: string
+  /**
+   * Current status of the task: pending, in_progress, completed, cancelled
+   */
+  status: string
+  /**
+   * Priority level of the task: high, medium, low
+   */
+  priority: string
 }
 
 export type Pty = {
@@ -984,6 +1001,7 @@ export type GlobalEvent = {
     | EventServerInstanceDisposed
     | EventFileEdited
     | EventFileWatcherUpdated
+    | EventBackgroundJobUpdated
     | EventLspClientDiagnostics
     | EventLspUpdated
     | EventMessagePartDelta
@@ -991,24 +1009,24 @@ export type GlobalEvent = {
     | EventPermissionReplied
     | EventSessionDiff
     | EventSessionError
+    | EventSessionStatus
+    | EventSessionIdle
+    | EventSessionRewindArchived
+    | EventMcpToolsChanged
+    | EventMcpBrowserOpenFailed
     | EventQuestionAsked
     | EventQuestionReplied
     | EventQuestionRejected
-    | EventTodoUpdated
-    | EventSessionStatus
-    | EventSessionIdle
-    | EventMcpToolsChanged
-    | EventMcpBrowserOpenFailed
     | EventCommandExecuted
     | EventProjectUpdated
     | EventSessionCompacted
-    | EventSessionRewindArchived
+    | EventWorktreeReady
+    | EventWorktreeFailed
+    | EventTodoUpdated
     | EventVcsBranchUpdated
     | EventWorkspaceReady
     | EventWorkspaceFailed
     | EventWorkspaceStatus
-    | EventWorktreeReady
-    | EventWorktreeFailed
     | EventPtyCreated
     | EventPtyUpdated
     | EventPtyExited
@@ -1026,6 +1044,7 @@ export type GlobalEvent = {
     | EventSessionNextModelSwitched
     | EventSessionNextPrompted
     | EventSessionNextSynthetic
+    | EventSessionNextSubagentCompleted
     | EventSessionNextShellStarted
     | EventSessionNextShellEnded
     | EventSessionNextStepStarted
@@ -1064,6 +1083,7 @@ export type GlobalEvent = {
     | SyncEventSessionNextModelSwitched
     | SyncEventSessionNextPrompted
     | SyncEventSessionNextSynthetic
+    | SyncEventSessionNextSubagentCompleted
     | SyncEventSessionNextShellStarted
     | SyncEventSessionNextShellEnded
     | SyncEventSessionNextStepStarted
@@ -1346,6 +1366,16 @@ export type AttachmentConfig = {
   image?: ImageAttachmentConfig
 }
 
+export type HookCommand = {
+  /**
+   * Shell command, run via the system shell with the worktree as cwd
+   */
+  command: string
+  tools?: Array<string>
+  glob?: string
+  timeout?: number
+}
+
 export type Config = {
   $schema?: string
   shell?: string
@@ -1486,6 +1516,33 @@ export type Config = {
       max_notes?: number
       min_turns?: number
     }
+  }
+  hooks?: {
+    pre_tool?: Array<HookCommand>
+    post_tool?: Array<HookCommand>
+    file_edited?: Array<HookCommand>
+    session_start?: Array<HookCommand>
+    session_idle?: Array<HookCommand>
+    session_error?: Array<HookCommand>
+  }
+  schedules?: Array<{
+    /**
+     * Unique schedule name
+     */
+    name: string
+    every?: string
+    at?: string
+    /**
+     * Prompt to run in a fresh session
+     */
+    prompt: string
+    agent?: string
+    model?: string
+    enabled?: boolean
+  }>
+  orchestration?: {
+    background?: boolean
+    max_parallel?: number
   }
   experimental?: {
     disable_paste_summary?: boolean
@@ -1648,6 +1705,15 @@ export type WorktreeRemoveInput = {
 
 export type WorktreeResetInput = {
   directory: string
+}
+
+export type BackgroundJobList = Array<BackgroundJobInfo>
+
+export type NotFoundError = {
+  name: "NotFoundError"
+  data: {
+    message: string
+  }
 }
 
 export type ProjectSummary = {
@@ -1966,13 +2032,6 @@ export type ProviderAuthError1 = {
   }
 }
 
-export type NotFoundError = {
-  name: "NotFoundError"
-  data: {
-    message: string
-  }
-}
-
 export type SessionBusyError = {
   _tag: "SessionBusyError"
   sessionID: string
@@ -2173,6 +2232,21 @@ export type EffectHttpApiErrorForbidden = {
   _tag: "Forbidden"
 }
 
+export type BackgroundJobInfo3 = {
+  id: string
+  type: string
+  title?: string
+  status: "running" | "completed" | "error" | "cancelled"
+  groupID?: string
+  started_at: number | "NaN" | "Infinity" | "-Infinity"
+  completed_at?: number | "NaN" | "Infinity" | "-Infinity"
+  output?: string
+  error?: string
+  metadata?: {
+    [key: string]: unknown
+  }
+}
+
 export type SyncEventMessageUpdated = {
   type: "sync"
   name: "message.updated.1"
@@ -2360,6 +2434,21 @@ export type SyncEventSessionNextSynthetic = {
   data: {
     timestamp: number
     sessionID: string
+    text: string
+  }
+}
+
+export type SyncEventSessionNextSubagentCompleted = {
+  type: "sync"
+  name: "session.next.subagent.completed.1"
+  id: string
+  seq: number
+  aggregateID: "sessionID"
+  data: {
+    timestamp: number
+    sessionID: string
+    parentID: string
+    agent: string
     text: string
   }
 }
@@ -2747,6 +2836,14 @@ export type EventFileWatcherUpdated = {
   }
 }
 
+export type EventBackgroundJobUpdated = {
+  id: string
+  type: "background.job.updated"
+  properties: {
+    info: BackgroundJobInfo
+  }
+}
+
 export type EventLspClientDiagnostics = {
   id: string
   type: "lsp.client.diagnostics"
@@ -2817,33 +2914,6 @@ export type EventSessionError = {
   }
 }
 
-export type EventQuestionAsked = {
-  id: string
-  type: "question.asked"
-  properties: QuestionRequest
-}
-
-export type EventQuestionReplied = {
-  id: string
-  type: "question.replied"
-  properties: QuestionReplied
-}
-
-export type EventQuestionRejected = {
-  id: string
-  type: "question.rejected"
-  properties: QuestionRejected
-}
-
-export type EventTodoUpdated = {
-  id: string
-  type: "todo.updated"
-  properties: {
-    sessionID: string
-    todos: Array<Todo>
-  }
-}
-
 export type EventSessionStatus = {
   id: string
   type: "session.status"
@@ -2858,6 +2928,15 @@ export type EventSessionIdle = {
   type: "session.idle"
   properties: {
     sessionID: string
+  }
+}
+
+export type EventSessionRewindArchived = {
+  id: string
+  type: "session.rewind.archived"
+  properties: {
+    sessionID: string
+    backupID: string
   }
 }
 
@@ -2876,6 +2955,24 @@ export type EventMcpBrowserOpenFailed = {
     mcpName: string
     url: string
   }
+}
+
+export type EventQuestionAsked = {
+  id: string
+  type: "question.asked"
+  properties: QuestionRequest
+}
+
+export type EventQuestionReplied = {
+  id: string
+  type: "question.replied"
+  properties: QuestionReplied
+}
+
+export type EventQuestionRejected = {
+  id: string
+  type: "question.rejected"
+  properties: QuestionRejected
 }
 
 export type EventCommandExecuted = {
@@ -2903,12 +3000,29 @@ export type EventSessionCompacted = {
   }
 }
 
-export type EventSessionRewindArchived = {
+export type EventWorktreeReady = {
   id: string
-  type: "session.rewind.archived"
+  type: "worktree.ready"
+  properties: {
+    name: string
+    branch?: string
+  }
+}
+
+export type EventWorktreeFailed = {
+  id: string
+  type: "worktree.failed"
+  properties: {
+    message: string
+  }
+}
+
+export type EventTodoUpdated = {
+  id: string
+  type: "todo.updated"
   properties: {
     sessionID: string
-    backupID: string
+    todos: Array<Todo>
   }
 }
 
@@ -2942,23 +3056,6 @@ export type EventWorkspaceStatus = {
   properties: {
     workspaceID: string
     status: "connected" | "connecting" | "disconnected" | "error"
-  }
-}
-
-export type EventWorktreeReady = {
-  id: string
-  type: "worktree.ready"
-  properties: {
-    name: string
-    branch?: string
-  }
-}
-
-export type EventWorktreeFailed = {
-  id: string
-  type: "worktree.failed"
-  properties: {
-    message: string
   }
 }
 
@@ -3147,6 +3244,18 @@ export type EventSessionNextSynthetic = {
   properties: {
     timestamp: number
     sessionID: string
+    text: string
+  }
+}
+
+export type EventSessionNextSubagentCompleted = {
+  id: string
+  type: "session.next.subagent.completed"
+  properties: {
+    timestamp: number
+    sessionID: string
+    parentID: string
+    agent: string
     text: string
   }
 }
@@ -4851,6 +4960,103 @@ export type WorktreeResetResponses = {
 }
 
 export type WorktreeResetResponse = WorktreeResetResponses[keyof WorktreeResetResponses]
+
+export type JobListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+    groupID?: string
+  }
+  url: "/experimental/job"
+}
+
+export type JobListErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type JobListError = JobListErrors[keyof JobListErrors]
+
+export type JobListResponses = {
+  /**
+   * List of background jobs
+   */
+  200: BackgroundJobList
+}
+
+export type JobListResponse = JobListResponses[keyof JobListResponses]
+
+export type JobGetData = {
+  body?: never
+  path: {
+    jobID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/experimental/job/{jobID}"
+}
+
+export type JobGetErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type JobGetError = JobGetErrors[keyof JobGetErrors]
+
+export type JobGetResponses = {
+  /**
+   * Background job
+   */
+  200: BackgroundJobInfo
+}
+
+export type JobGetResponse = JobGetResponses[keyof JobGetResponses]
+
+export type JobCancelData = {
+  body?: never
+  path: {
+    jobID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/experimental/job/{jobID}/cancel"
+}
+
+export type JobCancelErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type JobCancelError = JobCancelErrors[keyof JobCancelErrors]
+
+export type JobCancelResponses = {
+  /**
+   * Cancelled background job
+   */
+  200: BackgroundJobInfo
+}
+
+export type JobCancelResponse = JobCancelResponses[keyof JobCancelResponses]
 
 export type ExperimentalSessionListData = {
   body?: never

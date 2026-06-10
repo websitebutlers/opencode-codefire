@@ -227,6 +227,31 @@ describe("Worktree", () => {
     )
   })
 
+  describe("provision", () => {
+    it.instance(
+      "creates a populated worktree synchronously without instance boot",
+      () =>
+        Effect.gen(function* () {
+          const svc = yield* Worktree.Service
+          const test = yield* TestInstance
+          const info = yield* svc.provision()
+
+          // populated immediately — HEAD resolves to the same commit as the source repo
+          const head = yield* git(info.directory, ["rev-parse", "HEAD"])
+          const sourceHead = yield* git(test.directory, ["rev-parse", "HEAD"])
+          expect(head.trim()).toBe(sourceHead.trim())
+          expect(info.branch ?? "").toStartWith("opencode/")
+
+          const status = yield* git(info.directory, ["status", "--porcelain"])
+          expect(status.trim()).toBe("")
+
+          const ok = yield* svc.remove({ directory: info.directory })
+          expect(ok).toBe(true)
+        }),
+      { git: true },
+    )
+  })
+
   describe("createFromInfo", () => {
     wintest(
       "creates git worktree and boots asynchronously",

@@ -54,7 +54,7 @@ describe("RuntimeFlags", () => {
       expect(flags.enableExperimentalModels).toBe(true)
       expect(flags.enableQuestionTool).toBe(true)
       expect(flags.experimentalScout).toBe(true)
-      expect(flags.experimentalBackgroundSubagents).toBe(true)
+      expect(flags.backgroundSubagents).toBe(true)
       expect(flags.experimentalLspTy).toBe(false)
       expect(flags.experimentalLspTool).toBe(true)
       expect(flags.experimentalOxfmt).toBe(true)

@@ -1,5 +1,6 @@
 import { Account } from "@/account/account"
 import { Agent } from "@/agent/agent"
+import { BackgroundJob } from "@/background/job"
 import { Config } from "@/config/config"
 import { InstanceState } from "@/effect/instance-state"
 import { MCP } from "@/mcp"
@@ -12,7 +13,8 @@ import { Effect, Option } from "effect"
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse"
 import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
-import { ConsoleSwitchPayload, SessionListQuery, ToolListQuery, WorktreeApiError } from "../groups/experimental"
+import { notFound } from "../errors"
+import { ConsoleSwitchPayload, JobListQuery, SessionListQuery, ToolListQuery, WorktreeApiError } from "../groups/experimental"
 
 function mapWorktreeError<A, R>(self: Effect.Effect<A, Worktree.Error, R>) {
   return self.pipe(
@@ -29,6 +31,7 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
     const project = yield* Project.Service
     const registry = yield* ToolRegistry.Service
     const worktreeSvc = yield* Worktree.Service
+    const jobs = yield* BackgroundJob.Service
 
     const getConsole = Effect.fn("ExperimentalHttpApi.console")(function* () {
       const [state, groups] = yield* Effect.all(
@@ -125,6 +128,22 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
       return true
     })
 
+    const jobList = Effect.fn("ExperimentalHttpApi.job")(function* (ctx: { query: typeof JobListQuery.Type }) {
+      return yield* jobs.list(ctx.query.groupID !== undefined ? { groupID: ctx.query.groupID } : undefined)
+    })
+
+    const jobGet = Effect.fn("ExperimentalHttpApi.jobGet")(function* (ctx: { params: { jobID: string } }) {
+      const job = yield* jobs.get(ctx.params.jobID)
+      if (!job) return yield* notFound(`Job ${ctx.params.jobID} not found`)
+      return job
+    })
+
+    const jobCancel = Effect.fn("ExperimentalHttpApi.jobCancel")(function* (ctx: { params: { jobID: string } }) {
+      const job = yield* jobs.cancel(ctx.params.jobID)
+      if (!job) return yield* notFound(`Job ${ctx.params.jobID} not found`)
+      return job
+    })
+
     const session = Effect.fn("ExperimentalHttpApi.session")(function* (ctx: { query: typeof SessionListQuery.Type }) {
       const limit = ctx.query.limit ?? 100
       const sessions = Array.from(
@@ -161,6 +180,9 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
       .handle("worktreeCreate", worktreeCreate)
       .handle("worktreeRemove", worktreeRemove)
       .handle("worktreeReset", worktreeReset)
+      .handle("job", jobList)
+      .handle("jobGet", jobGet)
+      .handle("jobCancel", jobCancel)
       .handle("session", session)
       .handle("resource", resource)
   }),

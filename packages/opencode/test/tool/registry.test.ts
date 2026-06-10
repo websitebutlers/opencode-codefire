@@ -99,8 +99,8 @@ const it = testEffect(Layer.mergeAll(registryLayer(), node, Agent.defaultLayer))
 const scout = testEffect(
   Layer.mergeAll(registryLayer({ flags: { experimentalScout: true } }), node, Agent.defaultLayer),
 )
-const background = testEffect(
-  Layer.mergeAll(registryLayer({ flags: { experimentalBackgroundSubagents: true } }), node, Agent.defaultLayer),
+const backgroundDisabled = testEffect(
+  Layer.mergeAll(registryLayer({ flags: { backgroundSubagents: false } }), node, Agent.defaultLayer),
 )
 const withBrokenPlugin = testEffect(
   Layer.mergeAll(registryLayer({ plugin: brokenPluginLayer }), node, Agent.defaultLayer),
@@ -131,16 +131,17 @@ describe("tool.registry", () => {
     }),
   )
 
-  it.instance("hides task_status unless experimental background subagents are enabled", () =>
+  it.instance("shows task_status and agents by default", () =>
     Effect.gen(function* () {
       const registry = yield* ToolRegistry.Service
       const ids = yield* registry.ids()
 
-      expect(ids).not.toContain("task_status")
+      expect(ids).toContain("task_status")
+      expect(ids).toContain("agents")
     }),
   )
 
-  it.instance("hides task background parameter unless experimental background subagents are enabled", () =>
+  it.instance("exposes the task background parameter by default", () =>
     Effect.gen(function* () {
       const registry = yield* ToolRegistry.Service
       const agent = yield* Agent.Service
@@ -152,17 +153,17 @@ describe("tool.registry", () => {
         agent: build,
       })).find((tool) => tool.id === "task")
 
-      expect(task?.jsonSchema).toBeDefined()
-      expect((task?.jsonSchema?.properties as Record<string, unknown> | undefined)?.background).toBeUndefined()
+      expect(task?.jsonSchema).toBeUndefined()
     }),
   )
 
-  background.instance("shows task_status when experimental background subagents are enabled", () =>
+  backgroundDisabled.instance("hides task_status and agents when background subagents are disabled", () =>
     Effect.gen(function* () {
       const registry = yield* ToolRegistry.Service
       const ids = yield* registry.ids()
 
-      expect(ids).toContain("task_status")
+      expect(ids).not.toContain("task_status")
+      expect(ids).not.toContain("agents")
     }),
   )
 

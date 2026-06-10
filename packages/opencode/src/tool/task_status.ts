@@ -111,8 +111,8 @@ export const TaskStatusTool = Tool.define(
       params: Schema.Schema.Type<typeof Parameters>,
       _ctx: Tool.Context,
     ) {
-      if (!flags.experimentalBackgroundSubagents) {
-        return yield* Effect.fail(new Error("task_status requires OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true"))
+      if (!flags.backgroundSubagents) {
+        return yield* Effect.fail(new Error("Background subagents are disabled (OPENCODE_DISABLE_BACKGROUND_SUBAGENTS)"))
       }
 
       const session = yield* sessions.get(params.task_id).pipe(Effect.catchCause(() => Effect.succeed(undefined)))

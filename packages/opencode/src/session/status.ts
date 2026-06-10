@@ -3,7 +3,7 @@ import { Bus } from "@/bus"
 import { InstanceState } from "@/effect/instance-state"
 import { SessionID } from "./schema"
 import { NonNegativeInt } from "@opencode-ai/core/schema"
-import { Effect, Layer, Context, Schema } from "effect"
+import { Deferred, Effect, Layer, Context, Schema } from "effect"
 
 export const Info = Schema.Union([
   Schema.Struct({
@@ -52,6 +52,7 @@ export interface Interface {
   readonly get: (sessionID: SessionID) => Effect.Effect<Info>
   readonly list: () => Effect.Effect<Map<SessionID, Info>>
   readonly set: (sessionID: SessionID, status: Info) => Effect.Effect<void>
+  readonly waitIdle: (sessionID: SessionID) => Effect.Effect<void>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/SessionStatus") {}
@@ -85,7 +86,21 @@ export const layer = Layer.effect(
       data.set(sessionID, status)
     })
 
-    return Service.of({ get, list, set })
+    const waitIdle = Effect.fn("SessionStatus.waitIdle")(function* (sessionID: SessionID) {
+      const idle = yield* Deferred.make<void>()
+      const unsubscribe = yield* bus.subscribeCallback(Event.Status, (evt) => {
+        if (evt.properties.sessionID === sessionID && evt.properties.status.type === "idle")
+          Deferred.doneUnsafe(idle, Effect.void)
+      })
+      // checked after subscribing so the busy→idle edge can't slip between the two
+      if ((yield* get(sessionID)).type === "idle") {
+        unsubscribe()
+        return
+      }
+      yield* Deferred.await(idle).pipe(Effect.ensuring(Effect.sync(unsubscribe)))
+    })
+
+    return Service.of({ get, list, set, waitIdle })
   }),
 )
 

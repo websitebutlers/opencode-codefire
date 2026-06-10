@@ -2,6 +2,7 @@ import { randomBytes } from "crypto"
 
 const prefixes = {
   job: "job",
+  group: "grp",
   event: "evt",
   session: "ses",
   message: "msg",

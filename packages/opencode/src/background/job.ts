@@ -1,6 +1,8 @@
+import { Bus } from "@/bus"
+import { BusEvent } from "@/bus/bus-event"
 import { InstanceState } from "@/effect/instance-state"
 import { Identifier } from "@/id/id"
-import { Cause, Clock, Context, Deferred, Effect, Fiber, Layer, Scope, SynchronizedRef } from "effect"
+import { Cause, Clock, Context, Deferred, Effect, Fiber, Layer, Schema, Scope, Semaphore, SynchronizedRef } from "effect"
 
 export type Status = "running" | "completed" | "error" | "cancelled"
 
@@ -9,11 +11,34 @@ export type Info = {
   type: string
   title?: string
   status: Status
+  groupID?: string
   started_at: number
   completed_at?: number
   output?: string
   error?: string
   metadata?: Record<string, unknown>
+}
+
+export const InfoSchema = Schema.Struct({
+  id: Schema.String,
+  type: Schema.String,
+  title: Schema.optional(Schema.String),
+  status: Schema.Literals(["running", "completed", "error", "cancelled"]),
+  groupID: Schema.optional(Schema.String),
+  started_at: Schema.Number,
+  completed_at: Schema.optional(Schema.Number),
+  output: Schema.optional(Schema.String),
+  error: Schema.optional(Schema.String),
+  metadata: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+}).annotate({ identifier: "BackgroundJobInfo" })
+
+export const Event = {
+  Updated: BusEvent.define(
+    "background.job.updated",
+    Schema.Struct({
+      info: InfoSchema,
+    }),
+  ),
 }
 
 type Active = {
@@ -25,6 +50,7 @@ type Active = {
 type State = {
   jobs: SynchronizedRef.SynchronizedRef<Map<string, Active>>
   scope: Scope.Scope
+  semaphores: Map<string, Semaphore.Semaphore>
 }
 
 type FinishResult = {
@@ -36,8 +62,19 @@ export type StartInput = {
   id?: string
   type: string
   title?: string
+  groupID?: string
   metadata?: Record<string, unknown>
+  /**
+   * Jobs sharing a slot key contend for `limit` concurrent runs; excess jobs
+   * report status "running" but their run effect waits for a free slot. The
+   * limit is fixed by the first job that uses the key.
+   */
+  slot?: { key: string; limit: number }
   run: Effect.Effect<string, unknown>
+}
+
+export type ListInput = {
+  groupID?: string
 }
 
 export type WaitInput = {
@@ -51,7 +88,7 @@ export type WaitResult = {
 }
 
 export interface Interface {
-  readonly list: () => Effect.Effect<Info[]>
+  readonly list: (input?: ListInput) => Effect.Effect<Info[]>
   readonly get: (id: string) => Effect.Effect<Info | undefined>
   readonly start: (input: StartInput) => Effect.Effect<Info>
   readonly wait: (input: WaitInput) => Effect.Effect<WaitResult>
@@ -75,11 +112,14 @@ function errorText(error: unknown) {
 export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
+    const bus = yield* Bus.Service
+
     const state = yield* InstanceState.make<State>(
       Effect.fn("BackgroundJob.state")(function* () {
         return {
           jobs: yield* SynchronizedRef.make(new Map()),
           scope: yield* Scope.Scope,
+          semaphores: new Map(),
         }
       }),
     )
@@ -110,13 +150,17 @@ export const layer = Layer.effect(
           return [{ info: snapshot(next), done: job.done }, new Map(jobs).set(id, next)]
         },
       )
-      if (result.info && result.done) yield* Deferred.succeed(result.done, result.info).pipe(Effect.ignore)
+      if (result.info && result.done) {
+        yield* Deferred.succeed(result.done, result.info).pipe(Effect.ignore)
+        yield* bus.publish(Event.Updated, { info: result.info })
+      }
       return result.info
     })
 
-    const list: Interface["list"] = Effect.fn("BackgroundJob.list")(function* () {
+    const list: Interface["list"] = Effect.fn("BackgroundJob.list")(function* (input) {
       return Array.from((yield* SynchronizedRef.get((yield* InstanceState.get(state)).jobs)).values())
         .map(snapshot)
+        .filter((info) => input?.groupID === undefined || info.groupID === input.groupID)
         .toSorted((a, b) => a.started_at - b.started_at)
     })
 
@@ -138,7 +182,17 @@ export const layer = Layer.effect(
             Effect.fnUntraced(function* (jobs) {
               const existing = jobs.get(id)
               if (existing?.info.status === "running") return [snapshot(existing), jobs] as const
-              const fiber = yield* restore(input.run).pipe(
+              const slot = input.slot
+              const limited = slot
+                ? (() => {
+                    const found = s.semaphores.get(slot.key)
+                    if (found) return found
+                    const next = Semaphore.makeUnsafe(Math.max(1, slot.limit))
+                    s.semaphores.set(slot.key, next)
+                    return next
+                  })().withPermits(1)(input.run)
+                : input.run
+              const fiber = yield* restore(limited).pipe(
                 Effect.matchCauseEffect({
                   onSuccess: (output) => finish(id, "completed", { output }),
                   onFailure: (cause) =>
@@ -155,12 +209,16 @@ export const layer = Layer.effect(
                   type: input.type,
                   title: input.title,
                   status: "running" as const,
+                  groupID: input.groupID,
                   started_at,
                   metadata: input.metadata,
                 },
                 done,
                 fiber,
               }
+              // Published while the ref lock is held so the "running" event
+              // always precedes any transition event from finish().
+              yield* bus.publish(Event.Updated, { info: snapshot(job) })
               return [snapshot(job), new Map(jobs).set(id, job)] as const
             }),
           )
@@ -195,6 +253,6 @@ export const layer = Layer.effect(
   }),
 )
 
-export const defaultLayer = layer
+export const defaultLayer = layer.pipe(Layer.provide(Bus.layer))
 
 export * as BackgroundJob from "./job"

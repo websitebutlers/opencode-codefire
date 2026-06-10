@@ -139,6 +139,10 @@ export function update<Result>(adapter: Adapter<Result>, event: SessionEvent.Eve
         }),
       )
     },
+    "session.next.subagent.completed": () => {
+      // emitted for observers; the result is not represented in the parent's
+      // message stream
+    },
     "session.next.shell.started": (event) => {
       adapter.appendMessage(
         new SessionMessage.Shell({

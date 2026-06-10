@@ -386,6 +386,19 @@ export const Info = Schema.Struct({
     description:
       "Recurring prompts that run in fresh sessions while the agent is alive. In-process only: no missed-run catch-up after restarts.",
   }),
+  orchestration: Schema.optional(
+    Schema.Struct({
+      background: Schema.optional(Schema.Boolean).annotate({
+        description: "Set false to disable background subagents (default: true)",
+      }),
+      max_parallel: Schema.optional(PositiveInt).annotate({
+        description:
+          "Maximum number of background subagents running at once; additional starts queue until a slot frees up (default: 4)",
+      }),
+    }),
+  ).annotate({
+    description: "Multi-agent orchestration settings for background and parallel subagents.",
+  }),
   experimental: Schema.optional(
     Schema.Struct({
       disable_paste_summary: Schema.optional(Schema.Boolean),

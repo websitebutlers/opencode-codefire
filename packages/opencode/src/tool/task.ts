@@ -15,6 +15,11 @@ import { TuiEvent } from "@/cli/cmd/tui/event"
 import { Cause, Effect, Exit, Option, Schema, Scope } from "effect"
 import { EffectBridge } from "@/effect/bridge"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import { InstanceRef } from "@/effect/instance-ref"
+import { InstanceState } from "@/effect/instance-state"
+import { InstanceStore } from "@/project/instance-store"
+import { Worktree } from "@/worktree"
+import { Process } from "@/util/process"
 
 export interface TaskPromptOps {
   cancel(sessionID: SessionID): Effect.Effect<void>
@@ -42,6 +47,10 @@ const BaseParameters = Schema.Struct({
       "This should only be set if you mean to resume a previous task (you can pass a prior task_id and the task will continue the same subagent session as before instead of creating a fresh one)",
   }),
   command: Schema.optional(Schema.String).annotate({ description: "The command that triggered this task" }),
+  isolation: Schema.optional(Schema.Literals(["worktree"])).annotate({
+    description:
+      "Set to 'worktree' to run the subagent in an isolated git worktree. If the subagent changes files the worktree and its branch are kept and reported; otherwise the worktree is removed.",
+  }),
 })
 
 export const Parameters = Schema.Struct({
@@ -53,6 +62,10 @@ export const Parameters = Schema.Struct({
       "This should only be set if you mean to resume a previous task (you can pass a prior task_id and the task will continue the same subagent session as before instead of creating a fresh one)",
   }),
   command: Schema.optional(Schema.String).annotate({ description: "The command that triggered this task" }),
+  isolation: Schema.optional(Schema.Literals(["worktree"])).annotate({
+    description:
+      "Set to 'worktree' to run the subagent in an isolated git worktree. If the subagent changes files the worktree and its branch are kept and reported; otherwise the worktree is removed.",
+  }),
   background: Schema.optional(Schema.Boolean).annotate({
     description: "When true, launch the subagent in the background and return immediately",
   }),
@@ -100,6 +113,12 @@ function errorText(error: unknown) {
   return String(error)
 }
 
+function gitText(cwd: string, args: string[]) {
+  return Effect.promise(() => Process.run(["git", ...args], { cwd, nothrow: true })).pipe(
+    Effect.map((result) => result.stdout.toString("utf8").trim()),
+  )
+}
+
 export const TaskTool = Tool.define(
   id,
   Effect.gen(function* () {
@@ -118,10 +137,11 @@ export const TaskTool = Tool.define(
     ) {
       const cfg = yield* config.get()
       const runInBackground = params.background === true
-      if (runInBackground && !flags.experimentalBackgroundSubagents) {
-        return yield* Effect.fail(
-          new Error("Background subagents require OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true"),
-        )
+      // set by orchestrating tools (agents fan-out) that collect results
+      // themselves instead of having completions injected into the parent
+      const quiet = ctx.extra?.suppressBackgroundInject === true
+      if (runInBackground && (!flags.backgroundSubagents || cfg.orchestration?.background === false)) {
+        return yield* Effect.fail(new Error("Background subagents are disabled"))
       }
 
       if (!ctx.extra?.bypassAgentCheck) {
@@ -142,6 +162,56 @@ export const TaskTool = Tool.define(
       }
 
       const taskID = params.task_id
+
+      let worktree: Worktree.Info | undefined
+      let worktreeBase = ""
+      let inWorktree: <A, E, R>(eff: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R> = (eff) => eff
+      if (params.isolation === "worktree") {
+        if (taskID) {
+          return yield* Effect.fail(new Error("task_id cannot be combined with worktree isolation"))
+        }
+        // Resolved lazily from the ambient context instead of the tool layer to
+        // avoid a layer cycle (InstanceStore → InstanceBootstrap → Schedules →
+        // SessionPrompt → ToolRegistry → TaskTool).
+        const worktreeSvc = Option.getOrUndefined(yield* Effect.serviceOption(Worktree.Service))
+        if (!worktreeSvc) {
+          return yield* Effect.fail(new Error("Worktree isolation is not available in this runtime"))
+        }
+        worktree = yield* worktreeSvc
+          .provision()
+          .pipe(Effect.mapError((error) => new Error(`Failed to provision worktree: ${error.message}`)))
+        worktreeBase = yield* gitText(worktree.directory, ["rev-parse", "HEAD"])
+        const parentCtx = yield* InstanceState.context
+        const store = Option.getOrUndefined(yield* Effect.serviceOption(InstanceStore.Service))
+        const childCtx = {
+          directory: worktree.directory,
+          worktree: worktree.directory,
+          project: parentCtx.project,
+        }
+        inWorktree = store
+          ? (eff) => store.provide(childCtx, eff)
+          : (eff) => eff.pipe(Effect.provideService(InstanceRef, childCtx))
+      }
+
+      const finalizeWorktree = Effect.fn("TaskTool.finalizeWorktree")(function* () {
+        if (!worktree) return ""
+        const status = yield* gitText(worktree.directory, ["status", "--porcelain"])
+        const head = yield* gitText(worktree.directory, ["rev-parse", "HEAD"])
+        const changed = status.length > 0 || head !== worktreeBase
+        if (!changed) {
+          const worktreeSvc = Option.getOrUndefined(yield* Effect.serviceOption(Worktree.Service))
+          if (worktreeSvc) yield* worktreeSvc.remove({ directory: worktree.directory }).pipe(Effect.ignore)
+          return ["", "", `[worktree] no changes — worktree removed (was ${worktree.directory})`].join("\n")
+        }
+        const diffstat = yield* gitText(worktree.directory, ["diff", "--stat", "HEAD"])
+        return [
+          "",
+          "",
+          `[worktree] changes kept on branch ${worktree.branch ?? "(detached)"} at ${worktree.directory}`,
+          ...(diffstat ? [diffstat] : []),
+        ].join("\n")
+      })
+
       const session = taskID
         ? yield* sessions.get(SessionID.make(taskID)).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
         : undefined
@@ -151,7 +221,7 @@ export const TaskTool = Tool.define(
         : undefined
       const nextSession =
         session ??
-        (yield* sessions.create({
+        (yield* inWorktree(sessions.create({
           parentID: ctx.sessionID,
           title: params.description + ` (@${next.name} subagent)`,
           permission: [
@@ -166,7 +236,7 @@ export const TaskTool = Tool.define(
               permission: item,
             })) ?? []),
           ],
-        }))
+        })))
 
       const msg = yield* MessageV2.get({ sessionID: ctx.sessionID, messageID: ctx.messageID }).pipe(Effect.orDie)
       if (msg.info.role !== "assistant") return yield* Effect.fail(new Error("Not an assistant message"))
@@ -180,6 +250,7 @@ export const TaskTool = Tool.define(
         sessionId: nextSession.id,
         model,
         ...(runInBackground ? { background: true } : {}),
+        ...(worktree ? { worktree: { directory: worktree.directory, branch: worktree.branch } } : {}),
       }
 
       yield* ctx.metadata({
@@ -191,7 +262,7 @@ export const TaskTool = Tool.define(
       if (!ops) return yield* Effect.fail(new Error("TaskTool requires promptOps in ctx.extra"))
       const runCancel = yield* EffectBridge.make()
 
-      const runTask = Effect.fn("TaskTool.runTask")(function* () {
+      const runPrompt = Effect.fn("TaskTool.runPrompt")(function* () {
         const parts = yield* ops.resolvePromptParts(params.prompt)
         const result = yield* ops.prompt({
           messageID: MessageID.ascending(),
@@ -211,6 +282,12 @@ export const TaskTool = Tool.define(
         return result.parts.findLast((item) => item.type === "text")?.text ?? ""
       })
 
+      const runTask = Effect.fn("TaskTool.runTask")(function* () {
+        const text = yield* inWorktree(runPrompt())
+        const footer = yield* finalizeWorktree()
+        return footer ? text + footer : text
+      })
+
       const resumeWhenIdle: (input: { userID: MessageID; state: "completed" | "error" }) => Effect.Effect<void> =
         Effect.fn("TaskTool.resumeWhenIdle")(function* (input: { userID: MessageID; state: "completed" | "error" }) {
           const latest = yield* sessions
@@ -219,7 +296,9 @@ export const TaskTool = Tool.define(
           if (Option.isNone(latest)) return
           if (latest.value.info.id !== input.userID) return
           if ((yield* status.get(ctx.sessionID)).type !== "idle") {
-            yield* Effect.sleep("300 millis")
+            // event-driven wait; the timeout is a safety net that re-checks the
+            // latest-user-message condition rather than a polling interval
+            yield* status.waitIdle(ctx.sessionID).pipe(Effect.timeoutOption("30 seconds"))
             return yield* resumeWhenIdle(input)
           }
           yield* bus.publish(TuiEvent.ToastShow, {
@@ -281,10 +360,12 @@ export const TaskTool = Tool.define(
           type: id,
           title: params.description,
           metadata,
+          groupID: typeof ctx.extra?.jobGroupID === "string" ? ctx.extra.jobGroupID : undefined,
+          slot: { key: "subagents", limit: cfg.orchestration?.max_parallel ?? 4 },
           run: runTask().pipe(
-            Effect.tap((text) => inject("completed", text).pipe(Effect.ignore)),
+            Effect.tap((text) => (quiet ? Effect.void : inject("completed", text).pipe(Effect.ignore))),
             Effect.catchCause((cause) =>
-              (Cause.hasInterruptsOnly(cause)
+              (Cause.hasInterruptsOnly(cause) || quiet
                 ? Effect.void
                 : inject("error", errorText(Cause.squash(cause))).pipe(Effect.ignore)
               ).pipe(Effect.andThen(Effect.failCause(cause))),
@@ -302,7 +383,7 @@ export const TaskTool = Tool.define(
         }
       }
 
-      const cancel = ops.cancel(nextSession.id)
+      const cancel = inWorktree(ops.cancel(nextSession.id))
 
       function onAbort() {
         runCancel.fork(cancel)
@@ -335,9 +416,9 @@ export const TaskTool = Tool.define(
     })
 
     return {
-      description: flags.experimentalBackgroundSubagents ? DESCRIPTION + BACKGROUND_DESCRIPTION : DESCRIPTION,
+      description: flags.backgroundSubagents ? DESCRIPTION + BACKGROUND_DESCRIPTION : DESCRIPTION,
       parameters: Parameters,
-      jsonSchema: flags.experimentalBackgroundSubagents ? undefined : ToolJsonSchema.fromSchema(BaseParameters),
+      jsonSchema: flags.backgroundSubagents ? undefined : ToolJsonSchema.fromSchema(BaseParameters),
       execute: (params: Schema.Schema.Type<typeof Parameters>, ctx: Tool.Context) =>
         run(params, ctx).pipe(Effect.orDie),
     }

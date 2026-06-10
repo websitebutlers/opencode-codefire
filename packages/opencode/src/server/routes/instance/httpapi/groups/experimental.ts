@@ -1,4 +1,5 @@
 import { AccountID, OrgID } from "@/account/schema"
+import { BackgroundJob } from "@/background/job"
 import { MCP } from "@/mcp"
 import { ProviderID, ModelID } from "@/provider/schema"
 import { Session } from "@/session/session"
@@ -13,6 +14,7 @@ import {
   WorkspaceRoutingQuery,
   WorkspaceRoutingQueryFields,
 } from "../middleware/workspace-routing"
+import { ApiNotFoundError } from "../errors"
 import { described } from "./metadata"
 import { QueryBoolean } from "./query"
 
@@ -70,6 +72,12 @@ export class WorktreeApiError extends Schema.ErrorClass<WorktreeApiError>("Workt
   },
   { httpApiStatus: 400 },
 ) {}
+const JobList = Schema.Array(BackgroundJob.InfoSchema).annotate({ identifier: "BackgroundJobList" })
+export const JobListQuery = Schema.Struct({
+  ...WorkspaceRoutingQueryFields,
+  groupID: Schema.optional(Schema.String),
+})
+
 export const SessionListQuery = Schema.Struct({
   ...WorkspaceRoutingQueryFields,
   roots: Schema.optional(QueryBoolean),
@@ -88,6 +96,9 @@ export const ExperimentalPaths = {
   toolIDs: "/experimental/tool/ids",
   worktree: "/experimental/worktree",
   worktreeReset: "/experimental/worktree/reset",
+  job: "/experimental/job",
+  jobGet: "/experimental/job/:jobID",
+  jobCancel: "/experimental/job/:jobID/cancel",
   session: "/experimental/session",
   resource: "/experimental/resource",
 } as const
@@ -200,6 +211,40 @@ export const ExperimentalApi = HttpApi.make("experimental")
             identifier: "worktree.reset",
             summary: "Reset worktree",
             description: "Reset a worktree branch to the primary default branch.",
+          }),
+        ),
+        HttpApiEndpoint.get("job", ExperimentalPaths.job, {
+          query: JobListQuery,
+          success: described(JobList, "List of background jobs"),
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "job.list",
+            summary: "List background jobs",
+            description: "List background jobs for the current instance, optionally filtered by groupID.",
+          }),
+        ),
+        HttpApiEndpoint.get("jobGet", ExperimentalPaths.jobGet, {
+          params: { jobID: Schema.String },
+          query: WorkspaceRoutingQuery,
+          success: described(BackgroundJob.InfoSchema, "Background job"),
+          error: ApiNotFoundError,
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "job.get",
+            summary: "Get background job",
+            description: "Get a background job by id.",
+          }),
+        ),
+        HttpApiEndpoint.post("jobCancel", ExperimentalPaths.jobCancel, {
+          params: { jobID: Schema.String },
+          query: WorkspaceRoutingQuery,
+          success: described(BackgroundJob.InfoSchema, "Cancelled background job"),
+          error: ApiNotFoundError,
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "job.cancel",
+            summary: "Cancel background job",
+            description: "Cancel a running background job by id. Returns the job's final state.",
           }),
         ),
         HttpApiEndpoint.get("session", ExperimentalPaths.session, {

@@ -96,6 +96,12 @@ import type {
   GlobalUpgradeResponses,
   InstanceDisposeErrors,
   InstanceDisposeResponses,
+  JobCancelErrors,
+  JobCancelResponses,
+  JobGetErrors,
+  JobGetResponses,
+  JobListErrors,
+  JobListResponses,
   LspStatusErrors,
   LspStatusResponses,
   McpAddErrors,
@@ -1526,6 +1532,104 @@ export class Worktree extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
+    })
+  }
+}
+
+export class Job extends HeyApiClient {
+  /**
+   * List background jobs
+   *
+   * List background jobs for the current instance, optionally filtered by groupID.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      groupID?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "groupID" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<JobListResponses, JobListErrors, ThrowOnError>({
+      url: "/experimental/job",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get background job
+   *
+   * Get a background job by id.
+   */
+  public get<ThrowOnError extends boolean = false>(
+    parameters: {
+      jobID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "jobID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<JobGetResponses, JobGetErrors, ThrowOnError>({
+      url: "/experimental/job/{jobID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Cancel background job
+   *
+   * Cancel a running background job by id. Returns the job's final state.
+   */
+  public cancel<ThrowOnError extends boolean = false>(
+    parameters: {
+      jobID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "jobID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<JobCancelResponses, JobCancelErrors, ThrowOnError>({
+      url: "/experimental/job/{jobID}/cancel",
+      ...options,
+      ...params,
     })
   }
 }
@@ -5249,6 +5353,11 @@ export class OpencodeClient extends HeyApiClient {
   private _worktree?: Worktree
   get worktree(): Worktree {
     return (this._worktree ??= new Worktree({ client: this.client }))
+  }
+
+  private _job?: Job
+  get job(): Job {
+    return (this._job ??= new Job({ client: this.client }))
   }
 
   private _find?: Find

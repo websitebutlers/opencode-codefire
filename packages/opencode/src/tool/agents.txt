@@ -1,0 +1,9 @@
+Run multiple subagents concurrently in a single call (fan-out).
+
+Each entry in tasks spawns a subagent with the same semantics as the task tool. All tasks run in the background, capped by orchestration.max_parallel (default 4); excess tasks queue until a slot frees up. By default the call waits for every task to finish and returns the aggregated results. Set wait=false to get task ids back immediately and poll them later with task_status.
+
+Usage notes:
+1. Use this instead of several sequential task calls whenever the tasks are independent of each other.
+2. Tasks that modify files should set isolation="worktree" so parallel agents cannot conflict. A worktree that ends up with changes is kept and its branch reported for review; an unchanged worktree is removed automatically.
+3. Every task starts a fresh subagent session, so each prompt must be fully self-contained: include all context the agent needs and state exactly what it should return.
+4. Results come back in task order, each tagged with its description and task_id (reusable with the task tool's task_id parameter to continue that agent).

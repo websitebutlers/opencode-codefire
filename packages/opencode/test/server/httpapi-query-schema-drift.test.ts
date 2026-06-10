@@ -13,6 +13,7 @@ import {
 } from "../../src/server/routes/instance/httpapi/groups/file"
 import {
   ExperimentalPaths,
+  JobListQuery,
   SessionListQuery as ExperimentalSessionListQuery,
   ToolListQuery,
 } from "../../src/server/routes/instance/httpapi/groups/experimental"
@@ -54,6 +55,7 @@ const openApiDriftRoutes = [
   { method: "get", path: FilePaths.list, query: FileQuery },
   { method: "get", path: ExperimentalPaths.session, query: ExperimentalSessionListQuery },
   { method: "get", path: ExperimentalPaths.tool, query: ToolListQuery },
+  { method: "get", path: ExperimentalPaths.job, query: JobListQuery },
   { method: "get", path: InstancePaths.vcsDiff, query: VcsDiffQuery },
   { method: "get", path: "/api/session", query: V2SessionsQuery },
   { method: "get", path: "/api/session/:sessionID/message", query: V2MessagesQuery },

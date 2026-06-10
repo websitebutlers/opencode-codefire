@@ -331,6 +331,13 @@ exports[`tool parameters JSON Schema (wire shape) task 1`] = `
       "description": "A short (3-5 words) description of the task",
       "type": "string",
     },
+    "isolation": {
+      "description": "Set to 'worktree' to run the subagent in an isolated git worktree. If the subagent changes files the worktree and its branch are kept and reported; otherwise the worktree is removed.",
+      "enum": [
+        "worktree",
+      ],
+      "type": "string",
+    },
     "prompt": {
       "description": "The task for the agent to perform",
       "type": "string",

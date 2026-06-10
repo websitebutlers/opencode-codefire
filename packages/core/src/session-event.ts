@@ -76,6 +76,18 @@ export const Synthetic = EventV2.define({
 })
 export type Synthetic = typeof Synthetic.Type
 
+export const SubagentCompleted = EventV2.define({
+  type: "session.next.subagent.completed",
+  ...options,
+  schema: {
+    ...Base,
+    parentID: Session.ID,
+    agent: Schema.String,
+    text: Schema.String,
+  },
+})
+export type SubagentCompleted = typeof SubagentCompleted.Type
+
 export namespace Shell {
   export const Started = EventV2.define({
     type: "session.next.shell.started",
@@ -368,6 +380,7 @@ export const All = Schema.Union(
     ModelSwitched,
     Prompted,
     Synthetic,
+    SubagentCompleted,
     Shell.Started,
     Shell.Ended,
     Step.Started,

@@ -53,6 +53,7 @@ import { SyncEvent } from "@/sync"
 import { ToolRegistry } from "@/tool/registry"
 import { lazy } from "@/util/lazy"
 import { Vcs } from "@/project/vcs"
+import { BackgroundJob } from "@/background/job"
 import { Worktree } from "@/worktree"
 import { Workspace } from "@/control-plane/workspace"
 import { CorsConfig, isAllowedCorsOrigin, type CorsOptions } from "@/server/cors"
@@ -195,6 +196,7 @@ export function createRoutes(
       cors(corsOptions),
       Account.defaultLayer,
       Agent.defaultLayer,
+      BackgroundJob.defaultLayer,
       Auth.defaultLayer,
       Command.defaultLayer,
       Config.defaultLayer,

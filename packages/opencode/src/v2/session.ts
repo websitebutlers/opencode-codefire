@@ -136,6 +136,14 @@ export interface Interface {
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/v2/Session") {}
 
+/** Final text a subagent produced: the last text part of the newest assistant message. */
+export function subagentResultText(messages: SessionMessage.Message[]): string | undefined {
+  const assistant = messages.find((msg) => msg.type === "assistant")
+  if (!assistant) return undefined
+  const text = assistant.content.findLast((part) => part.type === "text")
+  return text?.text
+}
+
 export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -347,10 +355,15 @@ export const layer = Layer.effect(
         yield* Effect.gen(function* () {
           yield* result.wait(child.id)
           const messages = yield* result.messages({ sessionID: child.id, order: "desc" })
-          const assistant = messages.find((msg) => msg.type === "assistant")
-          if (!assistant) return
-          const text = assistant.content.findLast((part) => part.type === "text")
-          if (!text) return
+          const text = subagentResultText(messages)
+          if (text === undefined) return
+          yield* events.publish(SessionEvent.SubagentCompleted, {
+            sessionID: child.id,
+            parentID: input.parentID,
+            agent: input.agent,
+            text,
+            timestamp: DateTime.makeUnsafe(Date.now()),
+          })
         }).pipe(Effect.forkChild())
       }),
       compact: Effect.fn("V2Session.compact")(function* (sessionID) {
