@@ -88,6 +88,8 @@ export function systemInstructions(argv = process.argv.slice(1), env: Env = proc
       '- Call `list_tasks` with `status: "in_progress"` to check active work.',
       "- Use `suggest_wiki_pages`, `get_wiki_page`, and `context_search` for project context before ad hoc grep-style exploration.",
       "- Capture durable non-obvious findings with `create_note` or task notes when the corresponding tools are available.",
+      "- A `<codefire-context>` block may appear on the first user message: auto-recalled project memory. Treat it as background to verify, and do not re-fetch the same context.",
+      "- Durable findings are also automatically captured as CodeFire notes at session boundaries; only call `create_note` yourself for findings worth saving immediately.",
       runtime.mode === "agent-chat"
         ? "- In CodeFire Agent Chat, request child-agent work with `agent_request_handoff` instead of launching terminal handoffs."
         : "- Outside Agent Chat, keep CodeFire MCP usage opportunistic and continue normally if those tools are unavailable.",

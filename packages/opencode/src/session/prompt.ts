@@ -7,6 +7,8 @@ import { SessionRevert } from "./revert"
 import * as Session from "./session"
 import { Agent } from "../agent/agent"
 import { CodeFire } from "@/codefire/codefire"
+import { CodeFireRecall } from "@/codefire/recall"
+import { CodeFireCapture } from "@/codefire/capture"
 import { Provider } from "@/provider/provider"
 import { ModelID, ProviderID } from "../provider/schema"
 import { type Tool as AITool, tool, jsonSchema } from "ai"
@@ -42,7 +44,7 @@ import { Truncate } from "@/tool/truncate"
 import { Image } from "@/image/image"
 import { decodeDataUrl } from "@/util/data-url"
 import { Process } from "@/util/process"
-import { Cause, Effect, Exit, Latch, Layer, Option, Scope, Context, Schema, Types } from "effect"
+import { Cause, Effect, Exit, Fiber, Latch, Layer, Option, Scope, Context, Schema, Types } from "effect"
 import * as EffectLogger from "@opencode-ai/core/effect/logger"
 import { InstanceState } from "@/effect/instance-state"
 import { TaskTool, type TaskPromptOps } from "@/tool/task"
@@ -57,6 +59,8 @@ import { Reference } from "@/reference/reference"
 import * as DateTime from "effect/DateTime"
 import { eq } from "@/storage/db"
 import * as Database from "@/storage/db"
+import { Storage } from "@/storage/storage"
+import { CodeFireBridge } from "@/codefire/bridge"
 import { SessionTable } from "./session.sql"
 import { referencePromptMetadata, referenceTextPart } from "./prompt/reference"
 import { SessionReminders } from "./reminders"
@@ -121,6 +125,8 @@ export const layer = Layer.effect(
     const summary = yield* SessionSummary.Service
     const sys = yield* SystemPrompt.Service
     const llm = yield* LLM.Service
+    const recall = yield* CodeFireRecall.Service
+    const capture = yield* CodeFireCapture.Service
     const references = yield* Reference.Service
     const events = yield* EventV2Bridge.Service
     const flags = yield* RuntimeFlags.Service
@@ -1208,6 +1214,50 @@ export const layer = Layer.effect(
       return { info, parts }
     }, Effect.scoped)
 
+    /**
+     * CodeFire auto-recall: on the first real user message of a top-level
+     * session, fetch relevant wiki/context/task snippets from the desktop
+     * bridge and attach them as a synthetic text part. Bounded by a timeout
+     * so a slow bridge never delays the first token; on timeout the fetch
+     * fiber keeps running to warm the MCP connection for later tool use.
+     */
+    const injectRecall = Effect.fn("SessionPrompt.injectRecall")(function* (input: {
+      session: Session.Info
+      message: MessageV2.WithParts
+    }) {
+      if (input.session.parentID) return
+      if (input.message.info.role !== "user") return
+      const cfg = yield* config.get()
+      if (cfg.codefire?.recall?.enabled === false) return
+      const text = input.message.parts
+        .filter((p): p is MessageV2.TextPart => p.type === "text" && !p.synthetic)
+        .map((p) => p.text)
+        .join("\n")
+        .trim()
+      if (!text) return
+      const real = (m: MessageV2.WithParts) =>
+        m.info.role === "user" && !m.parts.every((p) => "synthetic" in p && p.synthetic)
+      const history = yield* sessions.messages({ sessionID: input.session.id }).pipe(Effect.orDie)
+      if (history.filter(real).length !== 1) return
+
+      const budget = cfg.codefire?.recall?.budget ?? CodeFireRecall.RECALL_DEFAULT_BUDGET
+      const timeout = cfg.codefire?.recall?.timeout ?? CodeFireRecall.RECALL_DEFAULT_TIMEOUT
+      const fiber = yield* recall.fetch(text, { budget }).pipe(Effect.forkIn(scope))
+      const block = yield* Fiber.join(fiber).pipe(
+        Effect.timeoutOption(timeout),
+        Effect.orElseSucceed(() => Option.none<string | undefined>()),
+      )
+      if (Option.isNone(block) || !block.value) return
+      yield* sessions.updatePart({
+        id: PartID.ascending(),
+        messageID: input.message.info.id,
+        sessionID: input.session.id,
+        type: "text",
+        text: block.value,
+        synthetic: true,
+      } satisfies MessageV2.TextPart)
+    })
+
     const prompt: (input: PromptInput) => Effect.Effect<MessageV2.WithParts, Image.Error> = Effect.fn(
       "SessionPrompt.prompt",
     )(function* (input: PromptInput) {
@@ -1215,6 +1265,7 @@ export const layer = Layer.effect(
       yield* revert.cleanup(session)
       const message = yield* createUserMessage(input)
       yield* sessions.touch(input.sessionID)
+      if (CodeFire.active()) yield* injectRecall({ session, message }).pipe(Effect.ignore)
 
       const permissions: Permission.Rule[] = []
       for (const [t, enabled] of Object.entries(input.tools ?? {})) {
@@ -1272,6 +1323,7 @@ export const layer = Layer.effect(
             lastUser.id < lastAssistant.id
           ) {
             yield* slog.info("exiting loop")
+            if (CodeFire.active()) yield* capture.capture({ sessionID, reason: "loop-exit" }).pipe(Effect.forkIn(scope))
             break
           }
 
@@ -1293,6 +1345,10 @@ export const layer = Layer.effect(
           }
 
           if (task?.type === "compaction") {
+            // Capture durable findings before the context they live in is
+            // summarized away. Forked: compaction never waits on capture.
+            if (CodeFire.active())
+              yield* capture.capture({ sessionID, reason: "compaction" }).pipe(Effect.forkIn(scope))
             const result = yield* compaction.process({
               messages: msgs,
               parentID: lastUser.id,
@@ -1624,39 +1680,49 @@ export const layer = Layer.effect(
 )
 
 export const defaultLayer = Layer.suspend(() =>
-  layer.pipe(
-    Layer.provide(SessionRunState.defaultLayer),
-    Layer.provide(SessionStatus.defaultLayer),
-    Layer.provide(SessionCompaction.defaultLayer),
-    Layer.provide(SessionProcessor.defaultLayer),
-    Layer.provide(Command.defaultLayer),
-    Layer.provide(Permission.defaultLayer),
-    Layer.provide(MCP.defaultLayer),
-    Layer.provide(LSP.defaultLayer),
-    Layer.provide(ToolRegistry.defaultLayer),
-    Layer.provide(Truncate.defaultLayer),
-    Layer.provide(Provider.defaultLayer),
-    Layer.provide(Config.defaultLayer),
-    Layer.provide(Instruction.defaultLayer),
-    Layer.provide(AppFileSystem.defaultLayer),
-    Layer.provide(Plugin.defaultLayer),
-    Layer.provide(Session.defaultLayer),
-    Layer.provide(SessionRevert.defaultLayer),
-    Layer.provide(SessionSummary.defaultLayer),
-    Layer.provide(Image.defaultLayer),
-    Layer.provide(
-      Layer.mergeAll(
-        EventV2Bridge.defaultLayer,
-        Agent.defaultLayer,
-        SystemPrompt.defaultLayer,
-        LLM.defaultLayer,
-        Reference.defaultLayer,
-        Bus.layer,
-        CrossSpawnSpawner.defaultLayer,
-        RuntimeFlags.defaultLayer,
+  layer
+    .pipe(
+      // pipe() tops out at 20 arguments, so the CodeFire memory layers get
+      // their own link in the chain. Shared deps (MCP, Config, Session, …)
+      // are satisfied by the provides below and memoized by reference.
+      Layer.provide(CodeFireRecall.layer),
+      Layer.provide(CodeFireCapture.layer),
+      Layer.provide(CodeFireBridge.layer),
+      Layer.provide(Storage.defaultLayer),
+    )
+    .pipe(
+      Layer.provide(SessionRunState.defaultLayer),
+      Layer.provide(SessionStatus.defaultLayer),
+      Layer.provide(SessionCompaction.defaultLayer),
+      Layer.provide(SessionProcessor.defaultLayer),
+      Layer.provide(Command.defaultLayer),
+      Layer.provide(Permission.defaultLayer),
+      Layer.provide(MCP.defaultLayer),
+      Layer.provide(LSP.defaultLayer),
+      Layer.provide(ToolRegistry.defaultLayer),
+      Layer.provide(Truncate.defaultLayer),
+      Layer.provide(Provider.defaultLayer),
+      Layer.provide(Config.defaultLayer),
+      Layer.provide(Instruction.defaultLayer),
+      Layer.provide(AppFileSystem.defaultLayer),
+      Layer.provide(Plugin.defaultLayer),
+      Layer.provide(Session.defaultLayer),
+      Layer.provide(SessionRevert.defaultLayer),
+      Layer.provide(SessionSummary.defaultLayer),
+      Layer.provide(Image.defaultLayer),
+      Layer.provide(
+        Layer.mergeAll(
+          EventV2Bridge.defaultLayer,
+          Agent.defaultLayer,
+          SystemPrompt.defaultLayer,
+          LLM.defaultLayer,
+          Reference.defaultLayer,
+          Bus.layer,
+          CrossSpawnSpawner.defaultLayer,
+          RuntimeFlags.defaultLayer,
+        ),
       ),
     ),
-  ),
 )
 const ModelRef = Schema.Struct({
   providerID: ProviderID,

@@ -258,6 +258,13 @@ export interface Interface {
     clientName: string,
     resourceUri: string,
   ) => Effect.Effect<Awaited<ReturnType<MCPClient["readResource"]>> | undefined>
+  readonly callTool: (
+    clientName: string,
+    toolName: string,
+    args?: Record<string, unknown>,
+    options?: { timeout?: number },
+  ) => Effect.Effect<Awaited<ReturnType<MCPClient["callTool"]>> | undefined>
+  readonly toolDefs: (clientName: string) => Effect.Effect<MCPToolDef[] | undefined>
   readonly startAuth: (
     mcpName: string,
   ) => Effect.Effect<{ authorizationUrl: string; oauthState: string }, NotFoundError>
@@ -756,6 +763,36 @@ export const layer = Layer.effect(
       })
     })
 
+    /**
+     * Invoke a tool on a connected MCP server from built-in code (not via the
+     * LLM). Mirrors getPrompt/readResource semantics: resolves to `undefined`
+     * on any failure so callers degrade gracefully.
+     */
+    const callTool = Effect.fn("MCP.callTool")(function* (
+      clientName: string,
+      toolName: string,
+      args?: Record<string, unknown>,
+      options?: { timeout?: number },
+    ) {
+      return yield* withClient(
+        clientName,
+        (client) =>
+          client.callTool({ name: toolName, arguments: args }, CallToolResultSchema, {
+            resetTimeoutOnProgress: true,
+            timeout: options?.timeout ?? DEFAULT_TIMEOUT,
+          }),
+        "callTool",
+        { toolName },
+      )
+    })
+
+    /** Cached tool definitions for a connected server; `undefined` otherwise. */
+    const toolDefs = Effect.fn("MCP.toolDefs")(function* (clientName: string) {
+      const s = yield* InstanceState.get(state)
+      if (s.status[clientName]?.status !== "connected") return undefined
+      return s.defs[clientName]
+    })
+
     const getMcpConfig = Effect.fnUntraced(function* (mcpName: string) {
       const cfg = yield* cfgSvc.get()
       const mcpConfig = cfg.mcp?.[mcpName]
@@ -946,6 +983,8 @@ export const layer = Layer.effect(
       disconnect,
       getPrompt,
       readResource,
+      callTool,
+      toolDefs,
       startAuth,
       authenticate,
       finishAuth,

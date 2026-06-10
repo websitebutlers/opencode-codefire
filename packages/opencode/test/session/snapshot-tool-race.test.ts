@@ -63,6 +63,10 @@ import { RepositoryCache } from "../../src/reference/repository-cache"
 import { SyncEvent } from "@/sync"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { EventV2Bridge } from "@/event-v2-bridge"
+import { CodeFireBridge } from "@/codefire/bridge"
+import { CodeFireRecall } from "@/codefire/recall"
+import { CodeFireCapture } from "@/codefire/capture"
+import { Storage } from "@/storage/storage"
 
 void Log.init({ print: false })
 
@@ -79,6 +83,8 @@ const mcp = Layer.succeed(
     disconnect: () => Effect.void,
     getPrompt: () => Effect.succeed(undefined),
     readResource: () => Effect.succeed(undefined),
+    callTool: () => Effect.succeed(undefined),
+    toolDefs: () => Effect.succeed(undefined),
     startAuth: () => Effect.die("unexpected MCP auth"),
     authenticate: () => Effect.die("unexpected MCP auth"),
     finishAuth: () => Effect.die("unexpected MCP auth"),
@@ -165,6 +171,10 @@ function makeHttp() {
     TestLLMServer.layer,
     SessionSummary.defaultLayer,
     SessionPrompt.layer.pipe(
+      Layer.provide(CodeFireRecall.layer),
+      Layer.provide(CodeFireCapture.layer),
+      Layer.provide(CodeFireBridge.layer),
+      Layer.provide(Storage.defaultLayer),
       Layer.provide(SessionRevert.defaultLayer),
       Layer.provide(Image.defaultLayer),
       Layer.provide(Reference.defaultLayer),

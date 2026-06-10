@@ -285,6 +285,43 @@ export const Info = Schema.Struct({
       }),
     }),
   ),
+  codefire: Schema.optional(
+    Schema.Struct({
+      recall: Schema.optional(
+        Schema.Struct({
+          enabled: Schema.optional(Schema.Boolean).annotate({
+            description: "Inject relevant CodeFire wiki/context/task snippets on the first message (default: true)",
+          }),
+          budget: Schema.optional(PositiveInt).annotate({
+            description: "Maximum characters of recalled CodeFire context to inject (default: 8000)",
+          }),
+          timeout: Schema.optional(PositiveInt).annotate({
+            description: "Milliseconds to wait for CodeFire recall before continuing without it (default: 1500)",
+          }),
+        }),
+      ).annotate({
+        description: "Automatic CodeFire context recall at session start",
+      }),
+      capture: Schema.optional(
+        Schema.Struct({
+          enabled: Schema.optional(Schema.Boolean).annotate({
+            description: "Automatically capture durable findings as CodeFire notes (default: true)",
+          }),
+          max_notes: Schema.optional(PositiveInt).annotate({
+            description: "Maximum notes captured per extraction run (default: 3)",
+          }),
+          min_turns: Schema.optional(PositiveInt).annotate({
+            description: "Minimum new user turns before an idle-triggered capture runs (default: 3)",
+          }),
+        }),
+      ).annotate({
+        description: "Automatic CodeFire memory capture",
+      }),
+    }),
+  ).annotate({
+    description:
+      "CodeFire-native memory integration. Only takes effect when running as the CodeFire Terminal Agent with the desktop bridge available.",
+  }),
   experimental: Schema.optional(
     Schema.Struct({
       disable_paste_summary: Schema.optional(Schema.Boolean),
