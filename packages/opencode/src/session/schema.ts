@@ -24,3 +24,12 @@ export const PartID = Schema.String.check(Schema.isStartsWith("prt")).pipe(
 )
 
 export type PartID = Schema.Schema.Type<typeof PartID>
+
+export const CheckpointID = Schema.String.check(Schema.isStartsWith("chk")).pipe(
+  Schema.brand("CheckpointID"),
+  withStatics((s) => ({
+    ascending: (id?: string) => s.make(Identifier.ascending("checkpoint", id)),
+  })),
+)
+
+export type CheckpointID = Schema.Schema.Type<typeof CheckpointID>

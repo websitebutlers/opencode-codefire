@@ -40,32 +40,54 @@ export function DialogForkFromTimeline(props: { sessionID: string; onMove: (mess
         (x) => x.type === "text" && !x.synthetic && !x.ignored,
       ) as TextPart
       if (!part) continue
+      const fork = async (dialog: DialogContext, restoreFiles: boolean) => {
+        const forked = await sdk.client.session.fork({
+          sessionID: props.sessionID,
+          messageID: message.id,
+          ...(restoreFiles ? { restoreFiles: true } : {}),
+        })
+        const parts = sync.data.part[message.id] ?? []
+        const prompt = parts.reduce(
+          (agg, part) => {
+            if (part.type === "text") {
+              if (!part.synthetic) agg.input += part.text
+            }
+            if (part.type === "file") agg.parts.push(strip(part))
+            return agg
+          },
+          { input: "", parts: [] as PromptInfo["parts"] },
+        )
+        route.navigate({
+          sessionID: forked.data!.id,
+          type: "session",
+          prompt,
+        })
+        dialog.clear()
+      }
       result.push({
         title: part.text.replace(/\n/g, " "),
         value: message.id,
         footer: Locale.time(message.time.created),
-        onSelect: async (dialog) => {
-          const forked = await sdk.client.session.fork({
-            sessionID: props.sessionID,
-            messageID: message.id,
-          })
-          const parts = sync.data.part[message.id] ?? []
-          const prompt = parts.reduce(
-            (agg, part) => {
-              if (part.type === "text") {
-                if (!part.synthetic) agg.input += part.text
-              }
-              if (part.type === "file") agg.parts.push(strip(part))
-              return agg
-            },
-            { input: "", parts: [] as PromptInfo["parts"] },
-          )
-          route.navigate({
-            sessionID: forked.data!.id,
-            type: "session",
-            prompt,
-          })
-          dialog.clear()
+        onSelect: (dialog) => {
+          dialog.replace(() => (
+            <DialogSelect
+              title="Fork session"
+              options={[
+                {
+                  title: "Fork conversation",
+                  value: "conversation",
+                  description: "new session, files stay as they are",
+                  onSelect: (dialog) => void fork(dialog, false),
+                },
+                {
+                  title: "Fork + restore files",
+                  value: "files",
+                  description: "new session with files restored to this point (current work is checkpointed)",
+                  onSelect: (dialog) => void fork(dialog, true),
+                },
+              ]}
+            />
+          ))
         },
       })
     }

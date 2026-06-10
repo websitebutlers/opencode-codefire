@@ -5,7 +5,7 @@ import type { SessionMessage } from "@opencode-ai/core/session-message"
 import type { Snapshot } from "../snapshot"
 import type { Permission } from "../permission"
 import type { ProjectID } from "../project/schema"
-import type { SessionID, MessageID, PartID } from "./schema"
+import type { SessionID, MessageID, PartID, CheckpointID } from "./schema"
 import type { WorkspaceID } from "../control-plane/schema"
 import { Timestamps } from "../storage/schema.sql"
 
@@ -107,6 +107,22 @@ export const TodoTable = sqliteTable(
     primaryKey({ columns: [table.session_id, table.position] }),
     index("todo_session_idx").on(table.session_id),
   ],
+)
+
+export const CheckpointTable = sqliteTable(
+  "checkpoint",
+  {
+    id: text().$type<CheckpointID>().primaryKey(),
+    session_id: text()
+      .$type<SessionID>()
+      .notNull()
+      .references(() => SessionTable.id, { onDelete: "cascade" }),
+    message_id: text().$type<MessageID>().notNull(),
+    snapshot: text().notNull(),
+    source: text().$type<"prompt" | "fork" | "manual">().notNull().default("prompt"),
+    ...Timestamps,
+  },
+  (table) => [index("checkpoint_session_message_idx").on(table.session_id, table.message_id)],
 )
 
 export const SessionMessageTable = sqliteTable(

@@ -5,6 +5,7 @@ import { Session } from "@/session/session"
 import { MessageV2 } from "@/session/message-v2"
 import { SessionPrompt } from "@/session/prompt"
 import { SessionRevert } from "@/session/revert"
+import { SessionCheckpoint } from "@/session/checkpoint"
 import { SessionStatus } from "@/session/status"
 import { SessionSummary } from "@/session/summary"
 import { Todo } from "@/session/todo"
@@ -93,7 +94,9 @@ export const SessionPaths = {
   command: `${root}/:sessionID/command`,
   shell: `${root}/:sessionID/shell`,
   revert: `${root}/:sessionID/revert`,
+  revertPreview: `${root}/:sessionID/revert/preview`,
   unrevert: `${root}/:sessionID/unrevert`,
+  checkpoints: `${root}/:sessionID/checkpoint`,
   permissions: `${root}/:sessionID/permissions/:permissionID`,
   deleteMessage: `${root}/:sessionID/message/:messageID`,
   deletePart: `${root}/:sessionID/message/:messageID/part/:partID`,
@@ -238,12 +241,13 @@ export const SessionApi = HttpApi.make("session")
           query: WorkspaceRoutingQuery,
           payload: Schema.optional(ForkPayload),
           success: described(Session.Info, "200"),
-          error: [HttpApiError.BadRequest, ApiNotFoundError],
+          error: [HttpApiError.BadRequest, ApiNotFoundError, SessionBusyError],
         }).annotateMerge(
           OpenApi.annotations({
             identifier: "session.fork",
             summary: "Fork session",
-            description: "Create a new session by forking an existing session at a specific message point.",
+            description:
+              "Create a new session by forking an existing session at a specific message point. Pass restoreFiles=true to also restore the working tree to that point's checkpoint (the current tree is saved as a safety checkpoint first).",
           }),
         ),
         HttpApiEndpoint.post("abort", SessionPaths.abort, {
@@ -376,6 +380,20 @@ export const SessionApi = HttpApi.make("session")
               "Revert a specific message in a session, undoing its effects and restoring the previous state.",
           }),
         ),
+        HttpApiEndpoint.post("revertPreview", SessionPaths.revertPreview, {
+          params: { sessionID: SessionID },
+          query: WorkspaceRoutingQuery,
+          payload: RevertPayload,
+          success: described(SessionRevert.Preview, "Preview of the revert"),
+          error: [HttpApiError.BadRequest, ApiNotFoundError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.revertPreview",
+            summary: "Preview a revert",
+            description:
+              "Compute the file diff and message count a revert would undo, without changing any state. Use before session.revert to show the user what will happen.",
+          }),
+        ),
         HttpApiEndpoint.post("unrevert", SessionPaths.unrevert, {
           params: { sessionID: SessionID },
           query: WorkspaceRoutingQuery,
@@ -386,6 +404,19 @@ export const SessionApi = HttpApi.make("session")
             identifier: "session.unrevert",
             summary: "Restore reverted messages",
             description: "Restore all previously reverted messages in a session.",
+          }),
+        ),
+        HttpApiEndpoint.get("checkpoints", SessionPaths.checkpoints, {
+          params: { sessionID: SessionID },
+          query: { ...WorkspaceRoutingQueryFields, stats: Schema.optional(QueryBoolean) },
+          success: described(Schema.Array(SessionCheckpoint.Info), "Checkpoints for the session"),
+          error: [HttpApiError.BadRequest, ApiNotFoundError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.checkpoints",
+            summary: "List session checkpoints",
+            description:
+              "List the file-state checkpoints anchored at this session's messages, ordered by message. Pass stats=true to include per-checkpoint file change counts.",
           }),
         ),
         HttpApiEndpoint.post("permissionRespond", SessionPaths.permissions, {

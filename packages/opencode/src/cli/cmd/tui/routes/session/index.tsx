@@ -313,6 +313,15 @@ export function Session() {
   const dialog = useDialog()
   const renderer = useRenderer()
 
+  event.on("session.rewind.archived", (evt) => {
+    if (evt.properties.sessionID !== route.sessionID) return
+    toast.show({
+      message: "Rewound messages saved to an archived backup session",
+      variant: "info",
+      duration: 4000,
+    })
+  })
+
   event.on("session.status", (evt) => {
     if (evt.properties.sessionID !== route.sessionID) return
     if (evt.properties.status.type !== "retry") return
@@ -500,6 +509,28 @@ export function Session() {
       category: "Session",
       slash: {
         name: "timeline",
+      },
+      run: () => {
+        dialog.replace(() => (
+          <DialogTimeline
+            onMove={(messageID) => {
+              const child = scroll.getChildren().find((child) => {
+                return child.id === messageID
+              })
+              if (child) scroll.scrollBy(child.y - scroll.y - 1)
+            }}
+            sessionID={route.sessionID}
+            setPrompt={(promptInfo) => prompt?.set(promptInfo)}
+          />
+        ))
+      },
+    },
+    {
+      title: "Rewind session",
+      value: "session.rewind",
+      category: "Session",
+      slash: {
+        name: "rewind",
       },
       run: () => {
         dialog.replace(() => (
@@ -1075,6 +1106,7 @@ export function Session() {
     if (!info.messageID) return
     return {
       messageID: info.messageID,
+      mode: (info.mode ?? "both") as "conversation" | "files" | "both",
       reverted: revertRevertedMessages(),
       diff: info.diff,
       diffFiles: revertDiffFiles(),
@@ -1147,49 +1179,84 @@ export function Session() {
                           }
 
                           return (
-                            <box
-                              onMouseOver={() => setHover(true)}
-                              onMouseOut={() => setHover(false)}
-                              onMouseUp={handleUnrevert}
-                              marginTop={1}
-                              flexShrink={0}
-                              border={["left"]}
-                              customBorderChars={SplitBorder.customBorderChars}
-                              borderColor={theme.backgroundPanel}
-                            >
+                            <>
                               <box
-                                paddingTop={1}
-                                paddingBottom={1}
-                                paddingLeft={2}
-                                backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
+                                onMouseOver={() => setHover(true)}
+                                onMouseOut={() => setHover(false)}
+                                onMouseUp={handleUnrevert}
+                                marginTop={1}
+                                flexShrink={0}
+                                border={["left"]}
+                                customBorderChars={SplitBorder.customBorderChars}
+                                borderColor={theme.backgroundPanel}
                               >
-                                <text fg={theme.textMuted}>{revert()!.reverted.length} message reverted</text>
-                                <text fg={theme.textMuted}>
-                                  <span style={{ fg: theme.text }}>{redoShortcut()}</span> or /redo to restore
-                                </text>
-                                <Show when={revert()!.diffFiles?.length}>
-                                  <box marginTop={1}>
-                                    <For each={revert()!.diffFiles}>
-                                      {(file) => (
-                                        <text fg={theme.text}>
-                                          {file.filename}
-                                          <Show when={file.additions > 0}>
-                                            <span style={{ fg: theme.diffAdded }}> +{file.additions}</span>
-                                          </Show>
-                                          <Show when={file.deletions > 0}>
-                                            <span style={{ fg: theme.diffRemoved }}> -{file.deletions}</span>
-                                          </Show>
-                                        </text>
-                                      )}
-                                    </For>
-                                  </box>
-                                </Show>
+                                <box
+                                  paddingTop={1}
+                                  paddingBottom={1}
+                                  paddingLeft={2}
+                                  backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
+                                >
+                                  <Switch>
+                                    <Match when={revert()!.mode === "files"}>
+                                      <text fg={theme.textMuted}>files restored to checkpoint, messages kept</text>
+                                    </Match>
+                                    <Match when={revert()!.mode === "conversation"}>
+                                      <text fg={theme.textMuted}>
+                                        {revert()!.reverted.length} message rewound, files unchanged
+                                      </text>
+                                    </Match>
+                                    <Match when={true}>
+                                      <text fg={theme.textMuted}>{revert()!.reverted.length} message reverted</text>
+                                    </Match>
+                                  </Switch>
+                                  <text fg={theme.textMuted}>
+                                    <span style={{ fg: theme.text }}>{redoShortcut()}</span> or /redo to restore
+                                  </text>
+                                  <Show when={revert()!.mode !== "conversation" && revert()!.diffFiles?.length}>
+                                    <box marginTop={1}>
+                                      <For each={revert()!.diffFiles}>
+                                        {(file) => (
+                                          <text fg={theme.text}>
+                                            {file.filename}
+                                            <Show when={file.additions > 0}>
+                                              <span style={{ fg: theme.diffAdded }}> +{file.additions}</span>
+                                            </Show>
+                                            <Show when={file.deletions > 0}>
+                                              <span style={{ fg: theme.diffRemoved }}> -{file.deletions}</span>
+                                            </Show>
+                                          </text>
+                                        )}
+                                      </For>
+                                    </box>
+                                  </Show>
+                                </box>
                               </box>
-                            </box>
+                              {/* files-only rewinds keep the conversation visible */}
+                              <Show when={revert()!.mode === "files"}>
+                                <UserMessage
+                                  index={index()}
+                                  onMouseUp={() => {
+                                    if (renderer.getSelection()?.getSelectedText()) return
+                                    dialog.replace(() => (
+                                      <DialogMessage
+                                        messageID={message.id}
+                                        sessionID={route.sessionID}
+                                        setPrompt={(promptInfo) => prompt?.set(promptInfo)}
+                                      />
+                                    ))
+                                  }}
+                                  message={message as UserMessage}
+                                  parts={sync.data.part[message.id] ?? []}
+                                  pending={pending()}
+                                />
+                              </Show>
+                            </>
                           )
                         })()}
                       </Match>
-                      <Match when={revert()?.messageID && message.id >= revert()!.messageID}>
+                      <Match
+                        when={revert()?.messageID && revert()!.mode !== "files" && message.id >= revert()!.messageID}
+                      >
                         <></>
                       </Match>
                       <Match when={message.role === "user"}>

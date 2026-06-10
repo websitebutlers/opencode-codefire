@@ -9,6 +9,7 @@ import { SessionCompaction } from "@/session/compaction"
 import { MessageV2 } from "@/session/message-v2"
 import { SessionPrompt } from "@/session/prompt"
 import { SessionRevert } from "@/session/revert"
+import { SessionCheckpoint } from "@/session/checkpoint"
 import { SessionRunState } from "@/session/run-state"
 import { SessionStatus } from "@/session/status"
 import { SessionSummary } from "@/session/summary"
@@ -49,6 +50,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     const shareSvc = yield* SessionShare.Service
     const promptSvc = yield* SessionPrompt.Service
     const revertSvc = yield* SessionRevert.Service
+    const checkpointSvc = yield* SessionCheckpoint.Service
     const compactSvc = yield* SessionCompaction.Service
     const runState = yield* SessionRunState.Service
     const agentSvc = yield* Agent.Service
@@ -201,9 +203,31 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       params: { sessionID: SessionID }
       payload?: typeof ForkPayload.Type
     }) {
-      return yield* SessionError.mapStorageNotFound(
+      if (ctx.payload?.restoreFiles && ctx.payload.messageID) {
+        // restoring clobbers the working tree, so refuse while the source
+        // session is mid-run; restoreTo pins a safety checkpoint first
+        yield* SessionError.mapBusy(runState.assertNotBusy(ctx.params.sessionID))
+      }
+      const forked = yield* SessionError.mapStorageNotFound(
         session.fork({ sessionID: ctx.params.sessionID, messageID: ctx.payload?.messageID }),
       )
+      if (ctx.payload?.restoreFiles && ctx.payload.messageID) {
+        const anchor = yield* checkpointSvc.restoreTo({
+          sessionID: ctx.params.sessionID,
+          messageID: ctx.payload.messageID,
+        })
+        if (anchor) {
+          // pin the anchor under the forked session's lifetime too
+          const copied = yield* session.messages({ sessionID: forked.id }).pipe(Effect.orDie)
+          const last = copied.at(-1)
+          if (last) {
+            yield* checkpointSvc
+              .create({ sessionID: forked.id, messageID: last.info.id, snapshot: anchor, source: "fork" })
+              .pipe(Effect.ignore)
+          }
+        }
+      }
+      return forked
     })
 
     const forkRaw = Effect.fn("SessionHttpApi.forkRaw")(function* (ctx: {
@@ -352,6 +376,22 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       return yield* SessionError.mapBusy(revertSvc.unrevert({ sessionID: ctx.params.sessionID }))
     })
 
+    const revertPreview = Effect.fn("SessionHttpApi.revertPreview")(function* (ctx: {
+      params: { sessionID: SessionID }
+      payload: typeof RevertPayload.Type
+    }) {
+      yield* requireSession(ctx.params.sessionID)
+      return yield* revertSvc.preview({ sessionID: ctx.params.sessionID, ...ctx.payload })
+    })
+
+    const checkpoints = Effect.fn("SessionHttpApi.checkpoints")(function* (ctx: {
+      params: { sessionID: SessionID }
+      query: { stats?: boolean }
+    }) {
+      yield* requireSession(ctx.params.sessionID)
+      return yield* checkpointSvc.list({ sessionID: ctx.params.sessionID, stats: ctx.query.stats })
+    })
+
     const permissionRespond = Effect.fn("SessionHttpApi.permissionRespond")(function* (ctx: {
       params: { sessionID: SessionID; permissionID: PermissionID }
       payload: typeof PermissionResponsePayload.Type
@@ -426,7 +466,9 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       .handle("command", command)
       .handle("shell", shell)
       .handle("revert", revert)
+      .handle("revertPreview", revertPreview)
       .handle("unrevert", unrevert)
+      .handle("checkpoints", checkpoints)
       .handle("permissionRespond", permissionRespond)
       .handle("deleteMessage", deleteMessage)
       .handle("deletePart", deletePart)

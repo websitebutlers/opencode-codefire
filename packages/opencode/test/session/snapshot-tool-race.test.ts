@@ -63,6 +63,7 @@ import { RepositoryCache } from "../../src/reference/repository-cache"
 import { SyncEvent } from "@/sync"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { EventV2Bridge } from "@/event-v2-bridge"
+import { SessionCheckpoint } from "@/session/checkpoint"
 import { CodeFireBridge } from "@/codefire/bridge"
 import { CodeFireRecall } from "@/codefire/recall"
 import { CodeFireCapture } from "@/codefire/capture"
@@ -171,6 +172,7 @@ function makeHttp() {
     TestLLMServer.layer,
     SessionSummary.defaultLayer,
     SessionPrompt.layer.pipe(
+      Layer.provide(SessionCheckpoint.layer),
       Layer.provide(CodeFireRecall.layer),
       Layer.provide(CodeFireCapture.layer),
       Layer.provide(CodeFireBridge.layer),

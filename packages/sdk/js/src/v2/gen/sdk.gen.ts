@@ -15,6 +15,20 @@ import type {
   AuthRemoveResponses,
   AuthSetErrors,
   AuthSetResponses,
+  CodefireConnectionsErrors,
+  CodefireConnectionsResponses,
+  CodefireHealthErrors,
+  CodefireHealthResponses,
+  CodefireLifecycleErrors,
+  CodefireLifecycleResponses,
+  CodefireManifestErrors,
+  CodefireManifestResponses,
+  CodefireMcpErrors,
+  CodefireMcpResponses,
+  CodefireModelsErrors,
+  CodefireModelsResponses,
+  CodefireSettingsErrors,
+  CodefireSettingsResponses,
   CommandListErrors,
   CommandListResponses,
   Config as Config3,
@@ -159,6 +173,8 @@ import type {
   QuestionReplyResponses,
   SessionAbortErrors,
   SessionAbortResponses,
+  SessionCheckpointsErrors,
+  SessionCheckpointsResponses,
   SessionChildrenErrors,
   SessionChildrenResponses,
   SessionCommandErrors,
@@ -189,6 +205,8 @@ import type {
   SessionPromptErrors,
   SessionPromptResponses,
   SessionRevertErrors,
+  SessionRevertPreviewErrors,
+  SessionRevertPreviewResponses,
   SessionRevertResponses,
   SessionShareErrors,
   SessionShareResponses,
@@ -327,6 +345,92 @@ class HeyApiRegistry<T> {
 
   set(value: T, key?: string): void {
     this.instances.set(key ?? this.defaultKey, value)
+  }
+}
+
+export class Codefire extends HeyApiClient {
+  /**
+   * Get CodeFire agent manifest
+   *
+   * Discover CodeFire Terminal Agent identity, runtime, paths, and programmatic capabilities.
+   */
+  public manifest<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<CodefireManifestResponses, CodefireManifestErrors, ThrowOnError>({
+      url: "/codefire/v1/manifest",
+      ...options,
+    })
+  }
+
+  /**
+   * Get CodeFire agent health
+   *
+   * Check CodeFire Terminal Agent readiness for desktop and automation clients.
+   */
+  public health<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<CodefireHealthResponses, CodefireHealthErrors, ThrowOnError>({
+      url: "/codefire/v1/health",
+      ...options,
+    })
+  }
+
+  /**
+   * Get CodeFire model catalog
+   *
+   * List providers and models for CodeFire Desktop configuration screens.
+   */
+  public models<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<CodefireModelsResponses, CodefireModelsErrors, ThrowOnError>({
+      url: "/codefire/v1/models",
+      ...options,
+    })
+  }
+
+  /**
+   * Get CodeFire settings
+   *
+   * Read redacted CodeFire Terminal Agent defaults and behavior settings.
+   */
+  public settings<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<CodefireSettingsResponses, CodefireSettingsErrors, ThrowOnError>({
+      url: "/codefire/v1/settings",
+      ...options,
+    })
+  }
+
+  /**
+   * Get CodeFire connection readiness
+   *
+   * Read redacted provider connection readiness for CodeFire Desktop.
+   */
+  public connections<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<CodefireConnectionsResponses, CodefireConnectionsErrors, ThrowOnError>({
+      url: "/codefire/v1/connections",
+      ...options,
+    })
+  }
+
+  /**
+   * Get CodeFire MCP readiness
+   *
+   * Check CodeFire MCP configuration, runtime status, and project context metadata.
+   */
+  public mcp<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<CodefireMcpResponses, CodefireMcpErrors, ThrowOnError>({
+      url: "/codefire/v1/mcp",
+      ...options,
+    })
+  }
+
+  /**
+   * Get CodeFire lifecycle contract
+   *
+   * Describe Agent Chat lifecycle event payloads and delivery sink for CodeFire Desktop.
+   */
+  public lifecycle<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
+    return (options?.client ?? this.client).get<CodefireLifecycleResponses, CodefireLifecycleErrors, ThrowOnError>({
+      url: "/codefire/v1/lifecycle",
+      ...options,
+    })
   }
 }
 
@@ -3538,7 +3642,7 @@ export class Session2 extends HeyApiClient {
   /**
    * Fork session
    *
-   * Create a new session by forking an existing session at a specific message point.
+   * Create a new session by forking an existing session at a specific message point. Pass restoreFiles=true to also restore the working tree to that point's checkpoint (the current tree is saved as a safety checkpoint first).
    */
   public fork<ThrowOnError extends boolean = false>(
     parameters: {
@@ -3546,6 +3650,7 @@ export class Session2 extends HeyApiClient {
       directory?: string
       workspace?: string
       messageID?: string
+      restoreFiles?: boolean
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -3558,6 +3663,7 @@ export class Session2 extends HeyApiClient {
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
             { in: "body", key: "messageID" },
+            { in: "body", key: "restoreFiles" },
           ],
         },
       ],
@@ -3934,6 +4040,7 @@ export class Session2 extends HeyApiClient {
       workspace?: string
       messageID?: string
       partID?: string
+      mode?: "conversation" | "files" | "both"
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -3947,12 +4054,60 @@ export class Session2 extends HeyApiClient {
             { in: "query", key: "workspace" },
             { in: "body", key: "messageID" },
             { in: "body", key: "partID" },
+            { in: "body", key: "mode" },
           ],
         },
       ],
     )
     return (options?.client ?? this.client).post<SessionRevertResponses, SessionRevertErrors, ThrowOnError>({
       url: "/session/{sessionID}/revert",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Preview a revert
+   *
+   * Compute the file diff and message count a revert would undo, without changing any state. Use before session.revert to show the user what will happen.
+   */
+  public revertPreview<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+      messageID?: string
+      partID?: string
+      mode?: "conversation" | "files" | "both"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "messageID" },
+            { in: "body", key: "partID" },
+            { in: "body", key: "mode" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SessionRevertPreviewResponses,
+      SessionRevertPreviewErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionID}/revert/preview",
       ...options,
       ...params,
       headers: {
@@ -3990,6 +4145,40 @@ export class Session2 extends HeyApiClient {
     )
     return (options?.client ?? this.client).post<SessionUnrevertResponses, SessionUnrevertErrors, ThrowOnError>({
       url: "/session/{sessionID}/unrevert",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * List session checkpoints
+   *
+   * List the file-state checkpoints anchored at this session's messages, ordered by message. Pass stats=true to include per-checkpoint file change counts.
+   */
+  public checkpoints<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+      stats?: "true" | "false"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "stats" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<SessionCheckpointsResponses, SessionCheckpointsErrors, ThrowOnError>({
+      url: "/session/{sessionID}/checkpoint",
       ...options,
       ...params,
     })
@@ -5015,6 +5204,11 @@ export class OpencodeClient extends HeyApiClient {
   constructor(args?: { client?: Client; key?: string }) {
     super(args)
     OpencodeClient.__registry.set(this, args?.key)
+  }
+
+  private _codefire?: Codefire
+  get codefire(): Codefire {
+    return (this._codefire ??= new Codefire({ client: this.client }))
   }
 
   private _auth?: Auth

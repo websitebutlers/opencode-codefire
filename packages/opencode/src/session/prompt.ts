@@ -9,6 +9,8 @@ import { Agent } from "../agent/agent"
 import { CodeFire } from "@/codefire/codefire"
 import { CodeFireRecall } from "@/codefire/recall"
 import { CodeFireCapture } from "@/codefire/capture"
+import { Snapshot } from "@/snapshot"
+import { SessionCheckpoint } from "./checkpoint"
 import { Provider } from "@/provider/provider"
 import { ModelID, ProviderID } from "../provider/schema"
 import { type Tool as AITool, tool, jsonSchema } from "ai"
@@ -127,6 +129,8 @@ export const layer = Layer.effect(
     const llm = yield* LLM.Service
     const recall = yield* CodeFireRecall.Service
     const capture = yield* CodeFireCapture.Service
+    const snapshot = yield* Snapshot.Service
+    const checkpoint = yield* SessionCheckpoint.Service
     const references = yield* Reference.Service
     const events = yield* EventV2Bridge.Service
     const flags = yield* RuntimeFlags.Service
@@ -532,6 +536,7 @@ export const layer = Layer.effect(
               synthetic: true,
             }
             yield* sessions.updatePart(userPart)
+            yield* anchorCheckpoint({ session, messageID: userMsg.id })
 
             const msg: MessageV2.Assistant = {
               id: MessageID.ascending(),
@@ -1258,6 +1263,27 @@ export const layer = Layer.effect(
       } satisfies MessageV2.TextPart)
     })
 
+    /**
+     * Anchor a file-state checkpoint at a user message so the session can be
+     * rewound to this exact point later. Cheap when nothing changed (same
+     * tree hash) and a silent no-op when snapshots are unavailable. Subagent
+     * sessions share the worktree, so only top-level sessions anchor.
+     */
+    const anchorCheckpoint = Effect.fn("SessionPrompt.anchorCheckpoint")(function* (input: {
+      session: Session.Info
+      messageID: MessageID
+    }) {
+      if (input.session.parentID) return
+      yield* snapshot.track().pipe(
+        Effect.flatMap((hash) =>
+          hash
+            ? checkpoint.create({ sessionID: input.session.id, messageID: input.messageID, snapshot: hash })
+            : Effect.void,
+        ),
+        Effect.ignore,
+      )
+    })
+
     const prompt: (input: PromptInput) => Effect.Effect<MessageV2.WithParts, Image.Error> = Effect.fn(
       "SessionPrompt.prompt",
     )(function* (input: PromptInput) {
@@ -1265,6 +1291,7 @@ export const layer = Layer.effect(
       yield* revert.cleanup(session)
       const message = yield* createUserMessage(input)
       yield* sessions.touch(input.sessionID)
+      yield* anchorCheckpoint({ session, messageID: message.info.id })
       if (CodeFire.active()) yield* injectRecall({ session, message }).pipe(Effect.ignore)
 
       const permissions: Permission.Rule[] = []
@@ -1689,6 +1716,8 @@ export const defaultLayer = Layer.suspend(() =>
       Layer.provide(CodeFireCapture.layer),
       Layer.provide(CodeFireBridge.layer),
       Layer.provide(Storage.defaultLayer),
+      Layer.provide(SessionCheckpoint.layer),
+      Layer.provide(Snapshot.defaultLayer),
     )
     .pipe(
       Layer.provide(SessionRunState.defaultLayer),

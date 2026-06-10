@@ -32,6 +32,7 @@ export type Event =
   | EventCommandExecuted
   | EventProjectUpdated
   | EventSessionCompacted
+  | EventSessionRewindArchived
   | EventVcsBranchUpdated
   | EventWorkspaceReady
   | EventWorkspaceFailed
@@ -83,6 +84,180 @@ export type Event =
   | EventAccountRemoved
   | EventAccountSwitched
 
+export type CodeFireManifest = {
+  schemaVersion: 1
+  product: {
+    name: string
+    binary: string
+    version: string
+    channel: string
+    engine: {
+      name: string
+      version: string
+    }
+  }
+  runtime: {
+    mode: "normal" | "terminal" | "agent-chat"
+    cliName: "opencode" | "codefire-agent"
+    projectID?: string
+    parentThreadID?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    handoffTitle?: string
+  }
+  api: {
+    version: string
+    basePath: string
+    endpoints: Array<string>
+  }
+  paths: {
+    home: string
+    data: string
+    config: string
+    state: string
+    cache: string
+    tmp: string
+    log: string
+    bin: string
+  }
+  capabilities: {
+    controlApi: boolean
+    manifest: boolean
+    health: boolean
+    models: boolean
+    settings: boolean
+    connections: boolean
+    mcp: boolean
+    lifecycle: boolean
+  }
+}
+
+export type InvalidRequestError = {
+  _tag: "InvalidRequestError"
+  message: string
+  kind?: string
+  field?: string
+}
+
+export type CodeFireHealth = {
+  schemaVersion: 1
+  status: "ok" | "degraded" | "fail"
+  time: string
+  runtime: {
+    mode: "normal" | "terminal" | "agent-chat"
+    cliName: "opencode" | "codefire-agent"
+    projectID?: string
+    parentThreadID?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    handoffTitle?: string
+  }
+  checks: Array<{
+    id: string
+    status: "pass" | "warn" | "fail"
+    message: string
+  }>
+}
+
+export type CodeFireModels = {
+  schemaVersion: 1
+  defaults: {
+    [key: string]: string
+  }
+  providers: Array<{
+    id: string
+    name: string
+    source: string
+    modelCount: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    models: Array<{
+      id: string
+      name: string
+      providerID: string
+      status: string
+      context: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      output: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    }>
+  }>
+}
+
+export type CodeFireSettings = {
+  schemaVersion: 1
+  defaults: {
+    model: string
+    smallModel: string
+    agent: string
+  }
+  behavior: {
+    autoupdate: boolean | "notify"
+    share: "manual" | "auto" | "disabled"
+  }
+  paths: {
+    config: string
+    data: string
+    state: string
+    cache: string
+  }
+}
+
+export type CodeFireConnections = {
+  schemaVersion: 1
+  providers: Array<{
+    id: string
+    name: string
+    status: "available" | "connected"
+    source: string
+    auth: {
+      env: boolean
+      stored: boolean
+      config: boolean
+    }
+  }>
+}
+
+export type CodeFireMcp = {
+  schemaVersion: 1
+  name: string
+  configured: boolean
+  enabled: boolean
+  transport: "local" | "remote"
+  status: "missing" | "disabled" | "uninitialized" | "connected" | "failed" | "needs_auth" | "needs_client_registration"
+  toolCount: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  project: {
+    id: string
+    parentThreadID: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    mode: "normal" | "terminal" | "agent-chat"
+  }
+  checks: Array<{
+    status: "pass" | "warn" | "fail"
+    label: string
+    detail: string
+  }>
+}
+
+export type CodeFireLifecycle = {
+  schemaVersion: 1
+  enabled: boolean
+  payload: {
+    kind: "codefire.agent.lifecycle"
+    version: 1
+  }
+  sink:
+    | {
+        type: "file"
+        path: string
+        format: "jsonl"
+      }
+    | {
+        type: "stderr"
+        prefix: string
+        format: "jsonl"
+      }
+  runtime: {
+    mode: "normal" | "terminal" | "agent-chat"
+    cliName: "opencode" | "codefire-agent"
+    projectID?: string
+    parentThreadID?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    handoffTitle?: string
+  }
+  events: Array<"runtime.started" | "session.ready" | "session.new" | "session.closed" | "runtime.closed">
+}
+
 export type OAuth = {
   type: "oauth"
   refresh: string
@@ -110,13 +285,6 @@ export type Auth = OAuth | ApiAuth | WellKnownAuth
 
 export type EffectHttpApiErrorBadRequest = {
   _tag: "BadRequest"
-}
-
-export type InvalidRequestError = {
-  _tag: "InvalidRequestError"
-  message: string
-  kind?: string
-  field?: string
 }
 
 export type EventTuiPromptAppend = {
@@ -791,6 +959,7 @@ export type Session = {
     partID?: string
     snapshot?: string
     diff?: string
+    mode?: "conversation" | "files" | "both"
   }
 }
 
@@ -833,6 +1002,7 @@ export type GlobalEvent = {
     | EventCommandExecuted
     | EventProjectUpdated
     | EventSessionCompacted
+    | EventSessionRewindArchived
     | EventVcsBranchUpdated
     | EventWorkspaceReady
     | EventWorkspaceFailed
@@ -1305,6 +1475,18 @@ export type Config = {
     preserve_recent_tokens?: number
     reserved?: number
   }
+  codefire?: {
+    recall?: {
+      enabled?: boolean
+      budget?: number
+      timeout?: number
+    }
+    capture?: {
+      enabled?: boolean
+      max_notes?: number
+      min_turns?: number
+    }
+  }
   experimental?: {
     disable_paste_summary?: boolean
     batch_tool?: boolean
@@ -1521,6 +1703,7 @@ export type GlobalSession = {
     partID?: string
     snapshot?: string
     diff?: string
+    mode?: "conversation" | "files" | "both"
   }
   project: ProjectSummary | null
 }
@@ -1790,6 +1973,12 @@ export type NotFoundError = {
   }
 }
 
+export type SessionBusyError = {
+  _tag: "SessionBusyError"
+  sessionID: string
+  message: string
+}
+
 export type TextPartInput = {
   id?: string
   type: "text"
@@ -1838,10 +2027,27 @@ export type SubtaskPartInput = {
   command?: string
 }
 
-export type SessionBusyError = {
-  _tag: "SessionBusyError"
+export type RevertPreview = {
+  diffs: Array<SnapshotFileDiff>
+  messages: number
+}
+
+export type CheckpointSummary = {
+  additions: number
+  deletions: number
+  files: number
+}
+
+export type Checkpoint = {
+  id?: string
   sessionID: string
-  message: string
+  messageID: string
+  snapshot: string
+  source: "prompt" | "fork" | "manual" | "derived"
+  time: {
+    created: number
+  }
+  summary?: CheckpointSummary
 }
 
 export type V2SessionsResponse = {
@@ -2084,6 +2290,7 @@ export type SyncEventSessionUpdated = {
         partID?: string
         snapshot?: string
         diff?: string
+        mode?: "conversation" | "files" | "both"
       } | null
     }
   }
@@ -2693,6 +2900,15 @@ export type EventSessionCompacted = {
   type: "session.compacted"
   properties: {
     sessionID: string
+  }
+}
+
+export type EventSessionRewindArchived = {
+  id: string
+  type: "session.rewind.archived"
+  properties: {
+    sessionID: string
+    backupID: string
   }
 }
 
@@ -3823,6 +4039,181 @@ export type BadRequestError = {
     kind?: "Params" | "Headers" | "Query" | "Body" | "Payload"
   }
 }
+
+export type CodefireManifestData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/codefire/v1/manifest"
+}
+
+export type CodefireManifestErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type CodefireManifestError = CodefireManifestErrors[keyof CodefireManifestErrors]
+
+export type CodefireManifestResponses = {
+  /**
+   * CodeFire agent manifest
+   */
+  200: CodeFireManifest
+}
+
+export type CodefireManifestResponse = CodefireManifestResponses[keyof CodefireManifestResponses]
+
+export type CodefireHealthData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/codefire/v1/health"
+}
+
+export type CodefireHealthErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type CodefireHealthError = CodefireHealthErrors[keyof CodefireHealthErrors]
+
+export type CodefireHealthResponses = {
+  /**
+   * CodeFire agent health
+   */
+  200: CodeFireHealth
+}
+
+export type CodefireHealthResponse = CodefireHealthResponses[keyof CodefireHealthResponses]
+
+export type CodefireModelsData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/codefire/v1/models"
+}
+
+export type CodefireModelsErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type CodefireModelsError = CodefireModelsErrors[keyof CodefireModelsErrors]
+
+export type CodefireModelsResponses = {
+  /**
+   * CodeFire agent model catalog
+   */
+  200: CodeFireModels
+}
+
+export type CodefireModelsResponse = CodefireModelsResponses[keyof CodefireModelsResponses]
+
+export type CodefireSettingsData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/codefire/v1/settings"
+}
+
+export type CodefireSettingsErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type CodefireSettingsError = CodefireSettingsErrors[keyof CodefireSettingsErrors]
+
+export type CodefireSettingsResponses = {
+  /**
+   * CodeFire agent settings
+   */
+  200: CodeFireSettings
+}
+
+export type CodefireSettingsResponse = CodefireSettingsResponses[keyof CodefireSettingsResponses]
+
+export type CodefireConnectionsData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/codefire/v1/connections"
+}
+
+export type CodefireConnectionsErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type CodefireConnectionsError = CodefireConnectionsErrors[keyof CodefireConnectionsErrors]
+
+export type CodefireConnectionsResponses = {
+  /**
+   * CodeFire agent connections
+   */
+  200: CodeFireConnections
+}
+
+export type CodefireConnectionsResponse = CodefireConnectionsResponses[keyof CodefireConnectionsResponses]
+
+export type CodefireMcpData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/codefire/v1/mcp"
+}
+
+export type CodefireMcpErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type CodefireMcpError = CodefireMcpErrors[keyof CodefireMcpErrors]
+
+export type CodefireMcpResponses = {
+  /**
+   * CodeFire MCP readiness
+   */
+  200: CodeFireMcp
+}
+
+export type CodefireMcpResponse = CodefireMcpResponses[keyof CodefireMcpResponses]
+
+export type CodefireLifecycleData = {
+  body?: never
+  path?: never
+  query?: never
+  url: "/codefire/v1/lifecycle"
+}
+
+export type CodefireLifecycleErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type CodefireLifecycleError = CodefireLifecycleErrors[keyof CodefireLifecycleErrors]
+
+export type CodefireLifecycleResponses = {
+  /**
+   * CodeFire lifecycle contract
+   */
+  200: CodeFireLifecycle
+}
+
+export type CodefireLifecycleResponse = CodefireLifecycleResponses[keyof CodefireLifecycleResponses]
 
 export type AuthRemoveData = {
   body?: never
@@ -6500,6 +6891,7 @@ export type SessionMessageResponse = SessionMessageResponses[keyof SessionMessag
 export type SessionForkData = {
   body?: {
     messageID?: string
+    restoreFiles?: boolean
   }
   path: {
     sessionID: string
@@ -6520,6 +6912,10 @@ export type SessionForkErrors = {
    * NotFoundError
    */
   404: NotFoundError
+  /**
+   * SessionBusyError
+   */
+  409: SessionBusyError
 }
 
 export type SessionForkError = SessionForkErrors[keyof SessionForkErrors]
@@ -6869,6 +7265,7 @@ export type SessionRevertData = {
   body?: {
     messageID: string
     partID?: string
+    mode?: "conversation" | "files" | "both"
   }
   path: {
     sessionID: string
@@ -6905,6 +7302,44 @@ export type SessionRevertResponses = {
 }
 
 export type SessionRevertResponse = SessionRevertResponses[keyof SessionRevertResponses]
+
+export type SessionRevertPreviewData = {
+  body?: {
+    messageID: string
+    partID?: string
+    mode?: "conversation" | "files" | "both"
+  }
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/revert/preview"
+}
+
+export type SessionRevertPreviewErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SessionRevertPreviewError = SessionRevertPreviewErrors[keyof SessionRevertPreviewErrors]
+
+export type SessionRevertPreviewResponses = {
+  /**
+   * Preview of the revert
+   */
+  200: RevertPreview
+}
+
+export type SessionRevertPreviewResponse = SessionRevertPreviewResponses[keyof SessionRevertPreviewResponses]
 
 export type SessionUnrevertData = {
   body?: never
@@ -6943,6 +7378,41 @@ export type SessionUnrevertResponses = {
 }
 
 export type SessionUnrevertResponse = SessionUnrevertResponses[keyof SessionUnrevertResponses]
+
+export type SessionCheckpointsData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+    stats?: "true" | "false"
+  }
+  url: "/session/{sessionID}/checkpoint"
+}
+
+export type SessionCheckpointsErrors = {
+  /**
+   * BadRequest | InvalidRequestError
+   */
+  400: EffectHttpApiErrorBadRequest | InvalidRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type SessionCheckpointsError = SessionCheckpointsErrors[keyof SessionCheckpointsErrors]
+
+export type SessionCheckpointsResponses = {
+  /**
+   * Checkpoints for the session
+   */
+  200: Array<Checkpoint>
+}
+
+export type SessionCheckpointsResponse = SessionCheckpointsResponses[keyof SessionCheckpointsResponses]
 
 export type PermissionRespondData = {
   body?: {

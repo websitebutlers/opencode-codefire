@@ -51,6 +51,8 @@ export interface Interface {
   readonly revert: (patches: Patch[]) => Effect.Effect<void>
   readonly diff: (hash: string) => Effect.Effect<string>
   readonly diffFull: (from: string, to: string) => Effect.Effect<FileDiff[]>
+  readonly pin: (ref: string, hash: string) => Effect.Effect<void>
+  readonly unpin: (prefix: string) => Effect.Effect<void>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/Snapshot") {}
@@ -710,6 +712,45 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
             )
           })
 
+          /**
+           * Pin a snapshot tree under refs/checkpoints/<ref> so `git gc
+           * --prune` keeps it (and its blobs) reachable indefinitely.
+           */
+          const pin = Effect.fnUntraced(function* (ref: string, hash: string) {
+            return yield* locked(
+              Effect.gen(function* () {
+                if (!(yield* exists(state.gitdir))) return
+                const result = yield* git(args(["update-ref", `refs/checkpoints/${ref}`, hash]), {
+                  cwd: state.directory,
+                })
+                if (result.code !== 0) {
+                  log.warn("failed to pin snapshot", { ref, hash, stderr: result.stderr })
+                }
+              }),
+            )
+          })
+
+          /** Delete every refs/checkpoints/<prefix>* ref (e.g. on session delete). */
+          const unpin = Effect.fnUntraced(function* (prefix: string) {
+            return yield* locked(
+              Effect.gen(function* () {
+                if (!(yield* exists(state.gitdir))) return
+                const listed = yield* git(args(["for-each-ref", "--format=%(refname)", `refs/checkpoints/${prefix}`]), {
+                  cwd: state.directory,
+                })
+                if (listed.code !== 0) return
+                const names = listed.text
+                  .trim()
+                  .split("\n")
+                  .map((line) => line.trim())
+                  .filter(Boolean)
+                for (const name of names) {
+                  yield* git(args(["update-ref", "-d", name]), { cwd: state.directory })
+                }
+              }),
+            )
+          })
+
           yield* cleanup().pipe(
             Effect.catchCause((cause) => {
               log.error("cleanup loop failed", { cause: Cause.pretty(cause) })
@@ -720,7 +761,7 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
             Effect.forkScoped,
           )
 
-          return { cleanup, track, patch, restore, revert, diff, diffFull }
+          return { cleanup, track, patch, restore, revert, diff, diffFull, pin, unpin }
         }),
       )
 
@@ -748,6 +789,12 @@ export const layer: Layer.Layer<Service, never, AppFileSystem.Service | AppProce
         }),
         diffFull: Effect.fn("Snapshot.diffFull")(function* (from: string, to: string) {
           return yield* InstanceState.useEffect(state, (s) => s.diffFull(from, to))
+        }),
+        pin: Effect.fn("Snapshot.pin")(function* (ref: string, hash: string) {
+          return yield* InstanceState.useEffect(state, (s) => s.pin(ref, hash))
+        }),
+        unpin: Effect.fn("Snapshot.unpin")(function* (prefix: string) {
+          return yield* InstanceState.useEffect(state, (s) => s.unpin(prefix))
         }),
       })
     }),

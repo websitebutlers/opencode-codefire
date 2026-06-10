@@ -197,6 +197,9 @@ const Revert = Schema.Struct({
   partID: optionalOmitUndefined(PartID),
   snapshot: optionalOmitUndefined(Schema.String),
   diff: optionalOmitUndefined(Schema.String),
+  // what the revert restored: conversation history, file state, or both
+  // (default). Drives cleanup/unrevert semantics and the TUI banner.
+  mode: optionalOmitUndefined(Schema.Literals(["conversation", "files", "both"])),
 })
 
 const Model = Schema.Struct({
@@ -255,6 +258,9 @@ export type CreateInput = Types.DeepMutable<Schema.Schema.Type<typeof CreateInpu
 export const ForkInput = Schema.Struct({
   sessionID: SessionID,
   messageID: Schema.optional(MessageID),
+  // also restore the working tree to the checkpoint at messageID
+  // (orchestrated by the HTTP handler; Session.fork itself is file-agnostic)
+  restoreFiles: Schema.optional(Schema.Boolean),
 })
 export const GetInput = SessionID
 export const ChildrenInput = SessionID
@@ -459,6 +465,7 @@ export interface Interface {
     workspaceID?: WorkspaceID
   }) => Effect.Effect<Info>
   readonly fork: (input: { sessionID: SessionID; messageID?: MessageID }) => Effect.Effect<Info, NotFound>
+  readonly copyMessages: (msgs: MessageV2.WithParts[], targetSessionID: SessionID) => Effect.Effect<void>
   readonly touch: (sessionID: SessionID) => Effect.Effect<void>
   readonly get: (id: SessionID) => Effect.Effect<Info, NotFound>
   readonly setTitle: (input: { sessionID: SessionID; title: string }) => Effect.Effect<void>
@@ -676,6 +683,43 @@ export const layer: Layer.Layer<
       })
     })
 
+    /**
+     * Clone messages (and parts) into another session, remapping IDs and
+     * compaction tail references. Used by fork and by revert's archive
+     * backup.
+     */
+    const copyMessages = Effect.fn("Session.copyMessages")(function* (
+      msgs: MessageV2.WithParts[],
+      targetSessionID: SessionID,
+    ) {
+      const idMap = new Map<string, MessageID>()
+      for (const msg of msgs) {
+        const newID = MessageID.ascending()
+        idMap.set(msg.info.id, newID)
+
+        const parentID = msg.info.role === "assistant" && msg.info.parentID ? idMap.get(msg.info.parentID) : undefined
+        const cloned = yield* updateMessage({
+          ...msg.info,
+          sessionID: targetSessionID,
+          id: newID,
+          ...(parentID && { parentID }),
+        })
+
+        for (const part of msg.parts) {
+          const p: MessageV2.Part = {
+            ...part,
+            id: PartID.ascending(),
+            messageID: cloned.id,
+            sessionID: targetSessionID,
+          }
+          if (p.type === "compaction" && p.tail_start_id) {
+            p.tail_start_id = idMap.get(p.tail_start_id)
+          }
+          yield* updatePart(p)
+        }
+      }
+    })
+
     const fork = Effect.fn("Session.fork")(function* (input: { sessionID: SessionID; messageID?: MessageID }) {
       const ctx = yield* InstanceState.context
       const original = yield* get(input.sessionID)
@@ -687,34 +731,8 @@ export const layer: Layer.Layer<
         title,
       })
       const msgs = yield* messages({ sessionID: input.sessionID })
-      const idMap = new Map<string, MessageID>()
-
-      for (const msg of msgs) {
-        if (input.messageID && msg.info.id >= input.messageID) break
-        const newID = MessageID.ascending()
-        idMap.set(msg.info.id, newID)
-
-        const parentID = msg.info.role === "assistant" && msg.info.parentID ? idMap.get(msg.info.parentID) : undefined
-        const cloned = yield* updateMessage({
-          ...msg.info,
-          sessionID: session.id,
-          id: newID,
-          ...(parentID && { parentID }),
-        })
-
-        for (const part of msg.parts) {
-          const p: MessageV2.Part = {
-            ...part,
-            id: PartID.ascending(),
-            messageID: cloned.id,
-            sessionID: session.id,
-          }
-          if (p.type === "compaction" && p.tail_start_id) {
-            p.tail_start_id = idMap.get(p.tail_start_id)
-          }
-          yield* updatePart(p)
-        }
-      }
+      const keep = input.messageID ? msgs.filter((msg) => msg.info.id < input.messageID!) : msgs
+      yield* copyMessages(keep, session.id)
       return session
     })
 
@@ -840,6 +858,7 @@ export const layer: Layer.Layer<
       list,
       create,
       fork,
+      copyMessages,
       touch,
       get,
       setTitle,

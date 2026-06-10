@@ -6,6 +6,265 @@
     "description": "opencode api"
   },
   "paths": {
+    "/codefire/v1/manifest": {
+      "get": {
+        "tags": ["codefire"],
+        "operationId": "codefire.manifest",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "CodeFire agent manifest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeFireManifest"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Discover CodeFire Terminal Agent identity, runtime, paths, and programmatic capabilities.",
+        "summary": "Get CodeFire agent manifest",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.codefire.manifest({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/codefire/v1/health": {
+      "get": {
+        "tags": ["codefire"],
+        "operationId": "codefire.health",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "CodeFire agent health",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeFireHealth"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Check CodeFire Terminal Agent readiness for desktop and automation clients.",
+        "summary": "Get CodeFire agent health",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.codefire.health({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/codefire/v1/models": {
+      "get": {
+        "tags": ["codefire"],
+        "operationId": "codefire.models",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "CodeFire agent model catalog",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeFireModels"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "description": "List providers and models for CodeFire Desktop configuration screens.",
+        "summary": "Get CodeFire model catalog",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.codefire.models({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/codefire/v1/settings": {
+      "get": {
+        "tags": ["codefire"],
+        "operationId": "codefire.settings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "CodeFire agent settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeFireSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Read redacted CodeFire Terminal Agent defaults and behavior settings.",
+        "summary": "Get CodeFire settings",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.codefire.settings({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/codefire/v1/connections": {
+      "get": {
+        "tags": ["codefire"],
+        "operationId": "codefire.connections",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "CodeFire agent connections",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeFireConnections"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Read redacted provider connection readiness for CodeFire Desktop.",
+        "summary": "Get CodeFire connection readiness",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.codefire.connections({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/codefire/v1/mcp": {
+      "get": {
+        "tags": ["codefire"],
+        "operationId": "codefire.mcp",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "CodeFire MCP readiness",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeFireMcp"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Check CodeFire MCP configuration, runtime status, and project context metadata.",
+        "summary": "Get CodeFire MCP readiness",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.codefire.mcp({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/codefire/v1/lifecycle": {
+      "get": {
+        "tags": ["codefire"],
+        "operationId": "codefire.lifecycle",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "CodeFire lifecycle contract",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodeFireLifecycle"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Describe Agent Chat lifecycle event payloads and delivery sink for CodeFire Desktop.",
+        "summary": "Get CodeFire lifecycle contract",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.codefire.lifecycle({\n  ...\n})"
+          }
+        ]
+      }
+    },
     "/auth/{providerID}": {
       "put": {
         "tags": ["control"],
@@ -6323,9 +6582,19 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "SessionBusyError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionBusyError"
+                }
+              }
+            }
           }
         },
-        "description": "Create a new session by forking an existing session at a specific message point.",
+        "description": "Create a new session by forking an existing session at a specific message point. Pass restoreFiles=true to also restore the working tree to that point's checkpoint (the current tree is saved as a safety checkpoint first).",
         "summary": "Fork session",
         "requestBody": {
           "content": {
@@ -6336,6 +6605,9 @@
                   "messageID": {
                     "type": "string",
                     "pattern": "^msg"
+                  },
+                  "restoreFiles": {
+                    "type": "boolean"
                   }
                 },
                 "additionalProperties": false
@@ -7325,6 +7597,10 @@
                   "partID": {
                     "type": "string",
                     "pattern": "^prt"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": ["conversation", "files", "both"]
                   }
                 },
                 "required": ["messageID"],
@@ -7337,6 +7613,111 @@
           {
             "lang": "js",
             "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.session.revert({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/session/{sessionID}/revert/preview": {
+      "post": {
+        "tags": ["session"],
+        "operationId": "session.revertPreview",
+        "parameters": [
+          {
+            "name": "sessionID",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^ses"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Preview of the revert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevertPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BadRequest | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/effect_HttpApiError_BadRequest"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "Compute the file diff and message count a revert would undo, without changing any state. Use before session.revert to show the user what will happen.",
+        "summary": "Preview a revert",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "messageID": {
+                    "type": "string",
+                    "pattern": "^msg"
+                  },
+                  "partID": {
+                    "type": "string",
+                    "pattern": "^prt"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": ["conversation", "files", "both"]
+                  }
+                },
+                "required": ["messageID"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.session.revertPreview({\n  ...\n})"
           }
         ]
       }
@@ -7427,6 +7808,99 @@
           {
             "lang": "js",
             "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.session.unrevert({\n  ...\n})"
+          }
+        ]
+      }
+    },
+    "/session/{sessionID}/checkpoint": {
+      "get": {
+        "tags": ["session"],
+        "operationId": "session.checkpoints",
+        "parameters": [
+          {
+            "name": "sessionID",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^ses"
+            },
+            "required": true
+          },
+          {
+            "name": "directory",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "name": "stats",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["true", "false"]
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Checkpoints for the session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Checkpoint"
+                  },
+                  "description": "Checkpoints for the session"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BadRequest | InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/effect_HttpApiError_BadRequest"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundError"
+                }
+              }
+            }
+          }
+        },
+        "description": "List the file-state checkpoints anchored at this session's messages, ordered by message. Pass stats=true to include per-checkpoint file change counts.",
+        "summary": "List session checkpoints",
+        "x-codeSamples": [
+          {
+            "lang": "js",
+            "source": "import { createOpencodeClient } from \"@opencode-ai/sdk\n\nconst client = createOpencodeClient()\nawait client.session.checkpoints({\n  ...\n})"
           }
         ]
       }
@@ -10549,6 +11023,9 @@
             "$ref": "#/components/schemas/EventSessionCompacted"
           },
           {
+            "$ref": "#/components/schemas/EventSessionRewindArchived"
+          },
+          {
             "$ref": "#/components/schemas/EventVcsBranchUpdated"
           },
           {
@@ -10778,6 +11255,767 @@
           }
         ]
       },
+      "CodeFireManifest": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "enum": [1]
+          },
+          "product": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "binary": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "channel": {
+                "type": "string"
+              },
+              "engine": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "type": "string"
+                  }
+                },
+                "required": ["name", "version"],
+                "additionalProperties": false
+              }
+            },
+            "required": ["name", "binary", "version", "channel", "engine"],
+            "additionalProperties": false
+          },
+          "runtime": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": ["normal", "terminal", "agent-chat"]
+              },
+              "cliName": {
+                "type": "string",
+                "enum": ["opencode", "codefire-agent"]
+              },
+              "projectID": {
+                "type": "string"
+              },
+              "parentThreadID": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity", "-Infinity", "NaN"]
+                  }
+                ]
+              },
+              "handoffTitle": {
+                "type": "string"
+              }
+            },
+            "required": ["mode", "cliName"],
+            "additionalProperties": false
+          },
+          "api": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "string"
+              },
+              "basePath": {
+                "type": "string"
+              },
+              "endpoints": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["version", "basePath", "endpoints"],
+            "additionalProperties": false
+          },
+          "paths": {
+            "type": "object",
+            "properties": {
+              "home": {
+                "type": "string"
+              },
+              "data": {
+                "type": "string"
+              },
+              "config": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              },
+              "cache": {
+                "type": "string"
+              },
+              "tmp": {
+                "type": "string"
+              },
+              "log": {
+                "type": "string"
+              },
+              "bin": {
+                "type": "string"
+              }
+            },
+            "required": ["home", "data", "config", "state", "cache", "tmp", "log", "bin"],
+            "additionalProperties": false
+          },
+          "capabilities": {
+            "type": "object",
+            "properties": {
+              "controlApi": {
+                "type": "boolean"
+              },
+              "manifest": {
+                "type": "boolean"
+              },
+              "health": {
+                "type": "boolean"
+              },
+              "models": {
+                "type": "boolean"
+              },
+              "settings": {
+                "type": "boolean"
+              },
+              "connections": {
+                "type": "boolean"
+              },
+              "mcp": {
+                "type": "boolean"
+              },
+              "lifecycle": {
+                "type": "boolean"
+              }
+            },
+            "required": ["controlApi", "manifest", "health", "models", "settings", "connections", "mcp", "lifecycle"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["schemaVersion", "product", "runtime", "api", "paths", "capabilities"],
+        "additionalProperties": false
+      },
+      "InvalidRequestError": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": ["InvalidRequestError"]
+          },
+          "message": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          }
+        },
+        "required": ["_tag", "message"],
+        "additionalProperties": false
+      },
+      "CodeFireHealth": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "enum": [1]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["ok", "degraded", "fail"]
+          },
+          "time": {
+            "type": "string"
+          },
+          "runtime": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": ["normal", "terminal", "agent-chat"]
+              },
+              "cliName": {
+                "type": "string",
+                "enum": ["opencode", "codefire-agent"]
+              },
+              "projectID": {
+                "type": "string"
+              },
+              "parentThreadID": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity", "-Infinity", "NaN"]
+                  }
+                ]
+              },
+              "handoffTitle": {
+                "type": "string"
+              }
+            },
+            "required": ["mode", "cliName"],
+            "additionalProperties": false
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["pass", "warn", "fail"]
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": ["id", "status", "message"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["schemaVersion", "status", "time", "runtime", "checks"],
+        "additionalProperties": false
+      },
+      "CodeFireModels": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "enum": [1]
+          },
+          "defaults": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                },
+                "modelCount": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["NaN"]
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["Infinity"]
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["-Infinity"]
+                    },
+                    {
+                      "type": "string",
+                      "enum": ["Infinity", "-Infinity", "NaN"]
+                    }
+                  ]
+                },
+                "models": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "providerID": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "context": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["NaN"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["-Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity", "-Infinity", "NaN"]
+                          }
+                        ]
+                      },
+                      "output": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["NaN"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["-Infinity"]
+                          },
+                          {
+                            "type": "string",
+                            "enum": ["Infinity", "-Infinity", "NaN"]
+                          }
+                        ]
+                      }
+                    },
+                    "required": ["id", "name", "providerID", "status", "context", "output"],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": ["id", "name", "source", "modelCount", "models"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["schemaVersion", "defaults", "providers"],
+        "additionalProperties": false
+      },
+      "CodeFireSettings": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "enum": [1]
+          },
+          "defaults": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "type": "string"
+              },
+              "smallModel": {
+                "type": "string"
+              },
+              "agent": {
+                "type": "string"
+              }
+            },
+            "required": ["model", "smallModel", "agent"],
+            "additionalProperties": false
+          },
+          "behavior": {
+            "type": "object",
+            "properties": {
+              "autoupdate": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["notify"]
+                  }
+                ]
+              },
+              "share": {
+                "type": "string",
+                "enum": ["manual", "auto", "disabled"]
+              }
+            },
+            "required": ["autoupdate", "share"],
+            "additionalProperties": false
+          },
+          "paths": {
+            "type": "object",
+            "properties": {
+              "config": {
+                "type": "string"
+              },
+              "data": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              },
+              "cache": {
+                "type": "string"
+              }
+            },
+            "required": ["config", "data", "state", "cache"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["schemaVersion", "defaults", "behavior", "paths"],
+        "additionalProperties": false
+      },
+      "CodeFireConnections": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "enum": [1]
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["available", "connected"]
+                },
+                "source": {
+                  "type": "string"
+                },
+                "auth": {
+                  "type": "object",
+                  "properties": {
+                    "env": {
+                      "type": "boolean"
+                    },
+                    "stored": {
+                      "type": "boolean"
+                    },
+                    "config": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["env", "stored", "config"],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["id", "name", "status", "source", "auth"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["schemaVersion", "providers"],
+        "additionalProperties": false
+      },
+      "CodeFireMcp": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "enum": [1]
+          },
+          "name": {
+            "type": "string"
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "transport": {
+            "type": "string",
+            "enum": ["local", "remote"]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "missing",
+              "disabled",
+              "uninitialized",
+              "connected",
+              "failed",
+              "needs_auth",
+              "needs_client_registration"
+            ]
+          },
+          "toolCount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "enum": ["NaN"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["-Infinity"]
+              },
+              {
+                "type": "string",
+                "enum": ["Infinity", "-Infinity", "NaN"]
+              }
+            ]
+          },
+          "project": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "parentThreadID": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity", "-Infinity", "NaN"]
+                  }
+                ]
+              },
+              "mode": {
+                "type": "string",
+                "enum": ["normal", "terminal", "agent-chat"]
+              }
+            },
+            "required": ["id", "parentThreadID", "mode"],
+            "additionalProperties": false
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": ["pass", "warn", "fail"]
+                },
+                "label": {
+                  "type": "string"
+                },
+                "detail": {
+                  "type": "string"
+                }
+              },
+              "required": ["status", "label", "detail"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "name",
+          "configured",
+          "enabled",
+          "transport",
+          "status",
+          "toolCount",
+          "project",
+          "checks"
+        ],
+        "additionalProperties": false
+      },
+      "CodeFireLifecycle": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "enum": [1]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "payload": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["codefire.agent.lifecycle"]
+              },
+              "version": {
+                "type": "number",
+                "enum": [1]
+              }
+            },
+            "required": ["kind", "version"],
+            "additionalProperties": false
+          },
+          "sink": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": ["file"]
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": ["jsonl"]
+                  }
+                },
+                "required": ["type", "path", "format"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": ["stderr"]
+                  },
+                  "prefix": {
+                    "type": "string"
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": ["jsonl"]
+                  }
+                },
+                "required": ["type", "prefix", "format"],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "runtime": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": ["normal", "terminal", "agent-chat"]
+              },
+              "cliName": {
+                "type": "string",
+                "enum": ["opencode", "codefire-agent"]
+              },
+              "projectID": {
+                "type": "string"
+              },
+              "parentThreadID": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NaN"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["-Infinity"]
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["Infinity", "-Infinity", "NaN"]
+                  }
+                ]
+              },
+              "handoffTitle": {
+                "type": "string"
+              }
+            },
+            "required": ["mode", "cliName"],
+            "additionalProperties": false
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["runtime.started", "session.ready", "session.new", "session.closed", "runtime.closed"]
+            }
+          }
+        },
+        "required": ["schemaVersion", "enabled", "payload", "sink", "runtime", "events"],
+        "additionalProperties": false
+      },
       "OAuth": {
         "type": "object",
         "properties": {
@@ -10864,26 +12102,6 @@
           }
         },
         "required": ["_tag"],
-        "additionalProperties": false
-      },
-      "InvalidRequestError": {
-        "type": "object",
-        "properties": {
-          "_tag": {
-            "type": "string",
-            "enum": ["InvalidRequestError"]
-          },
-          "message": {
-            "type": "string"
-          },
-          "kind": {
-            "type": "string"
-          },
-          "field": {
-            "type": "string"
-          }
-        },
-        "required": ["_tag", "message"],
         "additionalProperties": false
       },
       "Event.tui.prompt.append": {
@@ -12842,6 +14060,10 @@
               },
               "diff": {
                 "type": "string"
+              },
+              "mode": {
+                "type": "string",
+                "enum": ["conversation", "files", "both"]
               }
             },
             "required": ["messageID"],
@@ -12973,6 +14195,9 @@
               },
               {
                 "$ref": "#/components/schemas/EventSessionCompacted"
+              },
+              {
+                "$ref": "#/components/schemas/EventSessionRewindArchived"
               },
               {
                 "$ref": "#/components/schemas/EventVcsBranchUpdated"
@@ -14279,6 +15504,46 @@
             },
             "additionalProperties": false
           },
+          "codefire": {
+            "type": "object",
+            "properties": {
+              "recall": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "budget": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "timeout": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "additionalProperties": false
+              },
+              "capture": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "max_notes": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "min_turns": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
           "experimental": {
             "type": "object",
             "properties": {
@@ -14914,6 +16179,10 @@
               },
               "diff": {
                 "type": "string"
+              },
+              "mode": {
+                "type": "string",
+                "enum": ["conversation", "files", "both"]
               }
             },
             "required": ["messageID"],
@@ -15712,6 +16981,23 @@
           }
         }
       },
+      "SessionBusyError": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": ["SessionBusyError"]
+          },
+          "sessionID": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": ["_tag", "sessionID", "message"],
+        "additionalProperties": false
+      },
       "TextPartInput": {
         "type": "object",
         "properties": {
@@ -15857,21 +17143,75 @@
         "required": ["type", "prompt", "description", "agent"],
         "additionalProperties": false
       },
-      "SessionBusyError": {
+      "RevertPreview": {
         "type": "object",
         "properties": {
-          "_tag": {
-            "type": "string",
-            "enum": ["SessionBusyError"]
+          "diffs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SnapshotFileDiff"
+            }
           },
-          "sessionID": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
+          "messages": {
+            "type": "number"
           }
         },
-        "required": ["_tag", "sessionID", "message"],
+        "required": ["diffs", "messages"],
+        "additionalProperties": false
+      },
+      "CheckpointSummary": {
+        "type": "object",
+        "properties": {
+          "additions": {
+            "type": "number"
+          },
+          "deletions": {
+            "type": "number"
+          },
+          "files": {
+            "type": "number"
+          }
+        },
+        "required": ["additions", "deletions", "files"],
+        "additionalProperties": false
+      },
+      "Checkpoint": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^chk"
+          },
+          "sessionID": {
+            "type": "string",
+            "pattern": "^ses"
+          },
+          "messageID": {
+            "type": "string",
+            "pattern": "^msg"
+          },
+          "snapshot": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": ["prompt", "fork", "manual", "derived"]
+          },
+          "time": {
+            "type": "object",
+            "properties": {
+              "created": {
+                "type": "number"
+              }
+            },
+            "required": ["created"],
+            "additionalProperties": false
+          },
+          "summary": {
+            "$ref": "#/components/schemas/CheckpointSummary"
+          }
+        },
+        "required": ["sessionID", "messageID", "snapshot", "source", "time"],
         "additionalProperties": false
       },
       "V2SessionsResponse": {
@@ -16775,6 +18115,10 @@
                           },
                           "diff": {
                             "type": "string"
+                          },
+                          "mode": {
+                            "type": "string",
+                            "enum": ["conversation", "files", "both"]
                           }
                         },
                         "required": ["messageID"],
@@ -18682,6 +20026,35 @@
               }
             },
             "required": ["sessionID"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventSessionRewindArchived": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["session.rewind.archived"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "sessionID": {
+                "type": "string",
+                "pattern": "^ses"
+              },
+              "backupID": {
+                "type": "string",
+                "pattern": "^ses"
+              }
+            },
+            "required": ["sessionID", "backupID"],
             "additionalProperties": false
           }
         },
@@ -22114,6 +23487,10 @@
   },
   "security": [],
   "tags": [
+    {
+      "name": "codefire",
+      "description": "CodeFire Terminal Agent control routes."
+    },
     {
       "name": "control",
       "description": "Control plane routes."
