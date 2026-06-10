@@ -12,6 +12,7 @@ import { Ripgrep } from "@/file/ripgrep"
 import { File } from "@/file"
 import { FileWatcher } from "@/file/watcher"
 import { Storage } from "@/storage/storage"
+import { Schedules } from "@/automation/schedule"
 import { Snapshot } from "@/snapshot"
 import { Plugin } from "@/plugin"
 import { ModelsDev } from "@opencode-ai/core/models-dev"
@@ -114,6 +115,7 @@ export const AppLayer = Layer.mergeAll(
   SyncEvent.defaultLayer,
   EventV2Bridge.defaultLayer,
   DataMigration.defaultLayer,
+  Schedules.defaultLayer,
 ).pipe(Layer.provideMerge(InstanceLayer.layer), Layer.provideMerge(Observability.layer))
 
 const rt = ManagedRuntime.make(AppLayer, { memoMap })

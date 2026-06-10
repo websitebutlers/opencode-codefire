@@ -131,6 +131,21 @@ const LogLevelRef = Schema.Literals(["DEBUG", "INFO", "WARN", "ERROR"]).annotate
   description: "Log level",
 })
 
+const HookCommand = Schema.Struct({
+  command: Schema.String.annotate({
+    description: "Shell command, run via the system shell with the worktree as cwd",
+  }),
+  tools: Schema.optional(Schema.mutable(Schema.Array(Schema.String))).annotate({
+    description: "Tool name filters (wildcards allowed, e.g. 'bash', 'mcp_*'). Omit to match all tools.",
+  }),
+  glob: Schema.optional(Schema.String).annotate({
+    description: "File path filter for file_edited hooks (wildcards allowed, matched against worktree-relative path)",
+  }),
+  timeout: Schema.optional(PositiveInt).annotate({
+    description: "Milliseconds before the hook is killed (default: 10000 for pre_tool, 30000 otherwise)",
+  }),
+}).annotate({ identifier: "HookCommand" })
+
 export const Info = Schema.Struct({
   $schema: Schema.optional(Schema.String).annotate({
     description: "JSON schema reference for configuration validation",
@@ -321,6 +336,55 @@ export const Info = Schema.Struct({
   ).annotate({
     description:
       "CodeFire-native memory integration. Only takes effect when running as the CodeFire Terminal Agent with the desktop bridge available.",
+  }),
+  hooks: Schema.optional(
+    Schema.Struct({
+      pre_tool: Schema.optional(Schema.mutable(Schema.Array(HookCommand))).annotate({
+        description:
+          "Run before a tool executes. Non-zero exit blocks the tool call and the hook's stderr is shown to the model.",
+      }),
+      post_tool: Schema.optional(Schema.mutable(Schema.Array(HookCommand))).annotate({
+        description: "Run after a tool completes (observing only).",
+      }),
+      file_edited: Schema.optional(Schema.mutable(Schema.Array(HookCommand))).annotate({
+        description:
+          "Run after the agent edits or writes a file. Filter with `glob`; the path is passed as $OPENCODE_HOOK_FILE.",
+      }),
+      session_start: Schema.optional(Schema.mutable(Schema.Array(HookCommand))).annotate({
+        description: "Run when a new top-level session is created.",
+      }),
+      session_idle: Schema.optional(Schema.mutable(Schema.Array(HookCommand))).annotate({
+        description: "Run when a session finishes working and becomes idle.",
+      }),
+      session_error: Schema.optional(Schema.mutable(Schema.Array(HookCommand))).annotate({
+        description: "Run when a session errors.",
+      }),
+    }),
+  ).annotate({
+    description:
+      "Declarative shell hooks. Commands run via the system shell with the worktree as cwd; a JSON payload describing the event is piped to stdin and OPENCODE_HOOK* environment variables are set.",
+  }),
+  schedules: Schema.optional(
+    Schema.mutable(
+      Schema.Array(
+        Schema.Struct({
+          name: Schema.String.annotate({ description: "Unique schedule name" }),
+          every: Schema.optional(Schema.String).annotate({
+            description: "Run interval like '90s', '30m', '4h', '1d' (minimum 60s). Mutually exclusive with `at`.",
+          }),
+          at: Schema.optional(Schema.String).annotate({
+            description: "Daily local time 'HH:MM'. Mutually exclusive with `every`.",
+          }),
+          prompt: Schema.String.annotate({ description: "Prompt to run in a fresh session" }),
+          agent: Schema.optional(Schema.String).annotate({ description: "Agent to run the prompt with" }),
+          model: Schema.optional(Schema.String).annotate({ description: "Model in provider/model format" }),
+          enabled: Schema.optional(Schema.Boolean).annotate({ description: "Set false to disable (default: true)" }),
+        }),
+      ),
+    ),
+  ).annotate({
+    description:
+      "Recurring prompts that run in fresh sessions while the agent is alive. In-process only: no missed-run catch-up after restarts.",
   }),
   experimental: Schema.optional(
     Schema.Struct({
